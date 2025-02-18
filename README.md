@@ -134,11 +134,6 @@ This implementation ensures privacy by:
 - Add client selection strategies
 - Incorporate more advanced neural network architectures
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
 ## Acknowledgments
 
-- The dataset used in this project is sourced from [provide source if applicable]
-- Inspired by the work on federated learning by [relevant references]
+- The dataset used in this project is sourced from [kaggle](https://www.kaggle.com/datasets/aadarshvelu/liver-cirrhosis-stage-classification/data).
