@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from model import CirrhosisPredictor
 from evaluation import evaluate_model
 from collections import deque
+from encryption import EncryptionSimulator, encrypt_vector, decrypt_vector
 
 def train_local_model(model, data, epochs=30, lr=0.001):
     criterion = nn.CrossEntropyLoss()
@@ -23,7 +24,7 @@ def train_local_model(model, data, epochs=30, lr=0.001):
 
     return model.state_dict()
 
-def aggregate_models(global_model, client_models, client_data_sizes):
+def aggregate_models(global_model, client_models, client_data_sizes, encryption_simulator):
     global_state_dict = global_model.state_dict()
     total_data = sum(client_data_sizes)
     
@@ -31,7 +32,9 @@ def aggregate_models(global_model, client_models, client_data_sizes):
         weighted_sum = torch.zeros_like(global_state_dict[key])
         for client_model, data_size in zip(client_models, client_data_sizes):
             weight = data_size / total_data
-            weighted_sum += weight * client_model[key]
+            decrypted_param = decrypt_vector(encryption_simulator, client_model[key])
+            decrypted_param = torch.tensor(decrypted_param).reshape(global_state_dict[key].shape)
+            weighted_sum += weight * decrypted_param
         global_state_dict[key] = weighted_sum
     
     global_model.load_state_dict(global_state_dict)
@@ -41,6 +44,7 @@ def federated_learning_with_early_stopping(global_model, client_data, X_test_ten
     best_accuracy = 0
     rounds_without_improvement = 0
     accuracy_history = deque(maxlen=patience)
+    encryption_simulator = EncryptionSimulator()
 
     for round in range(max_rounds):
         client_models = []
@@ -50,10 +54,16 @@ def federated_learning_with_early_stopping(global_model, client_data, X_test_ten
             local_model = CirrhosisPredictor(global_model.fc[0].in_features)
             local_model.load_state_dict(global_model.state_dict())
             client_model_state = train_local_model(local_model, (client_X, client_y))
-            client_models.append(client_model_state)
+
+            # Encrypt the client model state
+            encrypted_client_model_state = {k: encrypt_vector(encryption_simulator, v.flatten()) for k, v in client_model_state.items()}
+    
+            client_models.append(encrypted_client_model_state)
             client_data_sizes.append(len(client_X))
 
-        aggregate_models(global_model, client_models, client_data_sizes)
+        # Decrypt and aggregate models
+        aggregate_models(global_model, client_models, client_data_sizes, encryption_simulator)
+
         test_accuracy = evaluate_model(global_model, X_test_tensor, y_test_tensor)
         print(f"Round {round + 1}, Test Accuracy: {test_accuracy:.4f}")
 
