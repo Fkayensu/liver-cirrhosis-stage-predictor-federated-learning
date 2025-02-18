@@ -23,13 +23,20 @@ def train_local_model(model, data, epochs=30, lr=0.001):
 
     return model.state_dict()
 
-def aggregate_models(global_model, client_models):
+def aggregate_models(global_model, client_models, client_data_sizes):
     global_state_dict = global_model.state_dict()
+    total_data = sum(client_data_sizes)
+    
     for key in global_state_dict.keys():
-        global_state_dict[key] = torch.stack([client_model[key] for client_model in client_models]).mean(0)
+        weighted_sum = torch.zeros_like(global_state_dict[key])
+        for client_model, data_size in zip(client_models, client_data_sizes):
+            weight = data_size / total_data
+            weighted_sum += weight * client_model[key]
+        global_state_dict[key] = weighted_sum
+    
     global_model.load_state_dict(global_state_dict)
 
-def federated_learning_with_early_stopping(global_model, client_data, X_test_tensor, y_test_tensor, patience=5, min_delta=0.001):
+def federated_learning_with_early_stopping(global_model, client_data, X_test_tensor, y_test_tensor, patience=7, min_delta=0.001):
     max_rounds = 100  # Set a maximum number of rounds as a safeguard
     best_accuracy = 0
     rounds_without_improvement = 0
@@ -37,14 +44,16 @@ def federated_learning_with_early_stopping(global_model, client_data, X_test_ten
 
     for round in range(max_rounds):
         client_models = []
+        client_data_sizes = []
 
         for client_X, client_y in client_data:
             local_model = CirrhosisPredictor(global_model.fc[0].in_features)
             local_model.load_state_dict(global_model.state_dict())
             client_model_state = train_local_model(local_model, (client_X, client_y))
             client_models.append(client_model_state)
+            client_data_sizes.append(len(client_X))
 
-        aggregate_models(global_model, client_models)
+        aggregate_models(global_model, client_models, client_data_sizes)
         test_accuracy = evaluate_model(global_model, X_test_tensor, y_test_tensor)
         print(f"Round {round + 1}, Test Accuracy: {test_accuracy:.4f}")
 
