@@ -41,54 +41,68 @@ def aggregate_models(global_model, client_models, client_data_sizes, encryption_
     global_model.load_state_dict(global_state_dict)
 
 def federated_learning_with_early_stopping(
-    global_model, client_data, X_test_tensor, y_test_tensor,
-    patience=5, min_delta=0.001, enable_defense=True
+    global_model, 
+    client_data, 
+    X_test_tensor, 
+    y_test_tensor, 
+    patience=7, 
+    min_delta=0.001, 
+    enable_defense=True
 ):
     max_rounds = 100
     best_accuracy = 0
     rounds_without_improvement = 0
     accuracy_history = deque(maxlen=patience)
     encryption_simulator = EncryptionSimulator()
-    defender = FederatedDefender(min_clients=max(5, len(client_data)//4))
+    
+    # Initialize defense system with same encryption simulator
+    defender = FederatedDefender(
+        validation_data=(X_test_tensor, y_test_tensor),
+        warmup_rounds=10,
+        min_clients=max(5, len(client_data)//4),
+        encryption_simulator=encryption_simulator  # Pass the same instance
+    )
 
     for round in range(max_rounds):
         client_models = []
         client_data_sizes = []
-        
-        # Client training remains unchanged
+
+        # Client training phase
         for client_X, client_y in client_data:
             local_model = CirrhosisPredictor(global_model.fc[0].in_features)
             local_model.load_state_dict(global_model.state_dict())
+            
+            # Train and encrypt model
             client_model_state = train_local_model(local_model, (client_X, client_y))
-            encrypted_state = {k: encrypt_vector(encryption_simulator, v.flatten()) 
-                              for k, v in client_model_state.items()}
+            encrypted_state = {
+                k: encrypt_vector(encryption_simulator, v.flatten()) 
+                for k, v in client_model_state.items()
+            }
             client_models.append(encrypted_state)
             client_data_sizes.append(len(client_X))
 
-        # Enhanced defense integration
+        # Secure aggregation with defense mechanisms
         if enable_defense:
-            valid_models = defender.analyze_models(client_models, encryption_simulator)
-            valid_indices = [i for i, m in enumerate(client_models) if m in valid_models]
+            global_model = defender.secure_aggregate(
+                global_model, 
+                client_models, 
+                client_data_sizes
+            )
             
-            if len(valid_indices) > 0:
-                client_models = [client_models[i] for i in valid_indices]
-                client_data_sizes = [client_data_sizes[i] for i in valid_indices]
-            else:
-                print("Using fallback client selection")
-                client_models = client_models[:defender.min_clients]
-                client_data_sizes = client_data_sizes[:defender.min_clients]
+            # Model verification and rollback if needed
+            if not defender.verify_global_model(global_model):
+                print("Model rollback due to verification failure")
+                rounds_without_improvement += 1
+                continue
 
-        # Model aggregation
-        aggregate_models(global_model, client_models, client_data_sizes, encryption_simulator)
+        # Update reference models for adaptive defense
         defender.update_reference(global_model.state_dict())
 
-        # Existing evaluation logic
+        # Model evaluation
         test_accuracy = evaluate_model(global_model, X_test_tensor, y_test_tensor)
         print(f"Round {round+1}, Test Accuracy: {test_accuracy:.4f}")
-        
-        # Early stopping logic remains unchanged
-        accuracy_history.append(test_accuracy)
 
+        # Early stopping logic
         if test_accuracy > best_accuracy + min_delta:
             best_accuracy = test_accuracy
             rounds_without_improvement = 0
@@ -97,10 +111,6 @@ def federated_learning_with_early_stopping(
 
         if rounds_without_improvement >= patience:
             print(f"Early stopping triggered. Best accuracy: {best_accuracy:.4f}")
-            break
-
-        if len(accuracy_history) == patience and max(accuracy_history) - min(accuracy_history) < min_delta:
-            print(f"Converged. Best accuracy: {best_accuracy:.4f}")
             break
 
     return global_model
