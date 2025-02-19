@@ -13,7 +13,7 @@ def main():
     input_dim = X_train_tensor.shape[1]
     global_model = CirrhosisPredictor(input_dim)
 
-    trained_model = federated_learning_with_early_stopping(global_model, client_data, X_test_tensor, y_test_tensor)
+    trained_model = federated_learning_with_early_stopping(global_model, client_data, X_test_tensor, y_test_tensor, enable_defense=True)
 
     final_accuracy = evaluate_model(trained_model, X_test_tensor, y_test_tensor)
     print(f"Final Test Accuracy: {final_accuracy:.4f}")

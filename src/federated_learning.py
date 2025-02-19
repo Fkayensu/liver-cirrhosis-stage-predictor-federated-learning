@@ -5,6 +5,7 @@ from model import CirrhosisPredictor
 from evaluation import evaluate_model
 from collections import deque
 from encryption import EncryptionSimulator, encrypt_vector, decrypt_vector
+from server_defense import FederatedDefender
 
 def train_local_model(model, data, epochs=30, lr=0.001):
     criterion = nn.CrossEntropyLoss()
@@ -39,34 +40,53 @@ def aggregate_models(global_model, client_models, client_data_sizes, encryption_
     
     global_model.load_state_dict(global_state_dict)
 
-def federated_learning_with_early_stopping(global_model, client_data, X_test_tensor, y_test_tensor, patience=7, min_delta=0.001):
-    max_rounds = 100  # Set a maximum number of rounds as a safeguard
+def federated_learning_with_early_stopping(
+    global_model, client_data, X_test_tensor, y_test_tensor,
+    patience=5, min_delta=0.001, enable_defense=True
+):
+    max_rounds = 100
     best_accuracy = 0
     rounds_without_improvement = 0
     accuracy_history = deque(maxlen=patience)
     encryption_simulator = EncryptionSimulator()
+    defender = FederatedDefender(min_clients=max(5, len(client_data)//4))
 
     for round in range(max_rounds):
         client_models = []
         client_data_sizes = []
-
+        
+        # Client training remains unchanged
         for client_X, client_y in client_data:
             local_model = CirrhosisPredictor(global_model.fc[0].in_features)
             local_model.load_state_dict(global_model.state_dict())
             client_model_state = train_local_model(local_model, (client_X, client_y))
-
-            # Encrypt the client model state
-            encrypted_client_model_state = {k: encrypt_vector(encryption_simulator, v.flatten()) for k, v in client_model_state.items()}
-    
-            client_models.append(encrypted_client_model_state)
+            encrypted_state = {k: encrypt_vector(encryption_simulator, v.flatten()) 
+                              for k, v in client_model_state.items()}
+            client_models.append(encrypted_state)
             client_data_sizes.append(len(client_X))
 
-        # Decrypt and aggregate models
+        # Enhanced defense integration
+        if enable_defense:
+            valid_models = defender.analyze_models(client_models, encryption_simulator)
+            valid_indices = [i for i, m in enumerate(client_models) if m in valid_models]
+            
+            if len(valid_indices) > 0:
+                client_models = [client_models[i] for i in valid_indices]
+                client_data_sizes = [client_data_sizes[i] for i in valid_indices]
+            else:
+                print("Using fallback client selection")
+                client_models = client_models[:defender.min_clients]
+                client_data_sizes = client_data_sizes[:defender.min_clients]
+
+        # Model aggregation
         aggregate_models(global_model, client_models, client_data_sizes, encryption_simulator)
+        defender.update_reference(global_model.state_dict())
 
+        # Existing evaluation logic
         test_accuracy = evaluate_model(global_model, X_test_tensor, y_test_tensor)
-        print(f"Round {round + 1}, Test Accuracy: {test_accuracy:.4f}")
-
+        print(f"Round {round+1}, Test Accuracy: {test_accuracy:.4f}")
+        
+        # Early stopping logic remains unchanged
         accuracy_history.append(test_accuracy)
 
         if test_accuracy > best_accuracy + min_delta:
