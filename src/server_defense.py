@@ -4,7 +4,48 @@ from scipy.stats import median_abs_deviation
 from encryption import decrypt_vector
 
 class FederatedDefender:
-    def __init__(self, encryption_simulator, sensitivity=3.5, warmup_rounds=10, min_clients=5, validation_data=None):
+    """
+    A class for implementing defense mechanisms in federated learning.
+
+    This class provides methods for secure aggregation, model verification,
+    and Byzantine-robust federated learning. It includes features such as
+    encrypted model handling, dynamic thresholding for outlier detection,
+    and model quality verification.
+
+    Attributes:
+        sensitivity (float): Sensitivity parameter for outlier detection.
+        warmup_rounds (int): Number of initial rounds before applying full defense.
+        min_clients (int): Minimum number of clients to retain after filtering.
+        reference_models (list): List of recent model states for comparison.
+        adaptive_threshold (float): Threshold for adaptive model filtering.
+        validation_data (tuple): Tuple of (X_val, y_val) for model verification.
+        best_global_model (dict): State dict of the best performing global model.
+        accuracy_history (list): History of model accuracies.
+        encryption_simulator (object): Object for simulating encryption/decryption.
+        monitor (object): Object for monitoring and logging metrics.
+        trim_percentage (float): Percentage of models to trim in robust aggregation.
+        accuracy_tolerance (float): Tolerance for accuracy degradation.
+        rollback_patience (int): Number of rounds to wait before rolling back.
+        shapes (dict): Registry of parameter shapes for each layer.
+
+    Methods:
+        analyze_models: Analyze and filter client models.
+        secure_aggregate: Perform secure and robust model aggregation.
+        verify_global_model: Verify the quality of the global model.
+        update_reference: Update the reference models for comparison.
+    """
+    def __init__(self, encryption_simulator, sensitivity=3.5, warmup_rounds=10, min_clients=5, validation_data=None, monitor=None):
+        """
+        Initialize the FederatedDefender.
+
+        Args:
+            encryption_simulator (object): Simulator for encryption/decryption operations.
+            sensitivity (float, optional): Sensitivity for outlier detection. Defaults to 3.5.
+            warmup_rounds (int, optional): Number of initial rounds before full defense. Defaults to 10.
+            min_clients (int, optional): Minimum number of clients to retain. Defaults to 5.
+            validation_data (tuple, optional): Validation data for model verification. Defaults to None.
+            monitor (object, optional): Object for monitoring metrics. Defaults to None.
+        """
         self.sensitivity = sensitivity
         self.warmup_rounds = warmup_rounds
         self.min_clients = min_clients
@@ -14,6 +55,7 @@ class FederatedDefender:
         self.best_global_model = None
         self.accuracy_history = []
         self.encryption_simulator = encryption_simulator
+        self.monitor = monitor
         
         # Byzantine-robust parameters
         self.trim_percentage = 0.2
@@ -24,6 +66,18 @@ class FederatedDefender:
         self.shapes = None
 
     def _decrypt_model(self, encrypted_model):
+        """
+        Decrypt an encrypted model.
+
+        Args:
+            encrypted_model (dict): A dictionary containing encrypted model parameters.
+
+        Returns:
+            dict: A dictionary containing decrypted model parameters.
+
+        This method decrypts each parameter of the model, reshaping it according to
+        the stored shapes or as a flat vector if the shape is unknown.
+        """
         decrypted = {}
         for k, v in encrypted_model.items():
             # decrypt_vector returns a flattened array
@@ -37,11 +91,38 @@ class FederatedDefender:
         return decrypted
 
     def _robust_zscore(self, values):
+        """
+        Calculate robust z-scores using median and median absolute deviation.
+
+        Args:
+            values (numpy.array): Array of values to calculate z-scores for.
+
+        Returns:
+            numpy.array: Array of robust z-scores.
+
+        This method is more resistant to outliers compared to standard z-scores.
+        """
         median = np.median(values)
         mad = median_abs_deviation(values)
         return np.abs((values - median) / (mad + 1e-8))
 
     def analyze_models(self, client_models, encryption_simulator):
+        """
+        Analyze client models to detect and filter out potential malicious updates.
+
+        Args:
+            client_models (list): List of encrypted client models.
+            encryption_simulator (object): Object used for decryption.
+
+        Returns:
+            list: Filtered list of client models deemed non-malicious.
+
+        This method decrypts models, calculates robust z-scores, and uses dynamic
+        thresholding to identify and remove potential malicious updates.
+        """
+        if self.monitor:
+            self.monitor.start_timer('model_analysis')
+
         self.encryption_simulator = encryption_simulator
         decrypted_models = [self._decrypt_model(m) for m in client_models]
         # Flatten each parameter tensor before concatenation for analysis
@@ -54,9 +135,29 @@ class FederatedDefender:
             client_scores.append(np.median(z_scores))
 
         valid_indices = self._dynamic_thresholding(np.array(client_scores))
+
+        if self.monitor:
+            self.monitor.stop_timer('model_analysis')
+            for i in range(len(client_models)):
+                is_attack = client_models[i].get('is_malicious', False)
+                detected = i not in valid_indices
+                self.monitor.record_security_event(i, is_attack, detected)
+
         return [client_models[i] for i in valid_indices]
 
     def _dynamic_thresholding(self, scores):
+        """
+        Apply dynamic thresholding to identify valid client updates.
+
+        Args:
+            scores (numpy.array): Array of scores for each client update.
+
+        Returns:
+            numpy.array: Indices of client updates deemed valid.
+
+        This method uses interquartile range to set a dynamic threshold for
+        identifying outliers, ensuring a minimum number of clients are retained.
+        """
         if len(self.reference_models) < self.warmup_rounds:
             return np.arange(len(scores))
         
@@ -72,7 +173,23 @@ class FederatedDefender:
 
     # Byzantine-robust aggregation methods
     def secure_aggregate(self, global_model, client_models, client_data_sizes):
-        """Perform Byzantine-robust model aggregation with shape preservation"""
+        """
+        Perform Byzantine-robust model aggregation with shape preservation.
+
+        Args:
+            global_model (nn.Module): The current global model.
+            client_models (list): List of client model updates.
+            client_data_sizes (list): List of data sizes for each client.
+
+        Returns:
+            nn.Module: Updated global model after secure aggregation.
+
+        This method uses trimmed mean aggregation and momentum stabilization
+        to robustly aggregate client updates into the global model.
+        """
+        if self.monitor:
+            self.monitor.start_timer('secure_aggregation')
+
         # Initialize the shape registry from the global model's state_dict if not already set
         if self.shapes is None:
             self.shapes = {k: v.shape for k, v in global_model.state_dict().items()}
@@ -99,11 +216,26 @@ class FederatedDefender:
                 global_state[key] = 0.9 * global_state[key] + 0.1 * self.best_global_model[key]
         
         global_model.load_state_dict(global_state)
+
+        if self.monitor:
+            self.monitor.stop_timer('secure_aggregation')
+
         return global_model
 
     # Global model verification
     def verify_global_model(self, model):
-        """Verify model quality and roll back if degraded"""
+        """
+        Verify the quality of the global model and roll back if degraded.
+
+        Args:
+            model (nn.Module): The global model to verify.
+
+        Returns:
+            bool: True if the model passes verification, False otherwise.
+
+        This method evaluates the model on validation data, compares its performance
+        to recent history, and decides whether to keep the update or roll back.
+        """
         if self.validation_data is None:
             return True
 
@@ -127,6 +259,15 @@ class FederatedDefender:
         return True
 
     def update_reference(self, model_state):
+        """
+        Update the list of reference models used for comparison.
+
+        Args:
+            model_state (dict): The state dictionary of the current global model.
+
+        This method maintains a rolling window of recent model states for use
+        in dynamic thresholding and other comparative analyses.
+        """
         if len(self.reference_models) >= self.warmup_rounds:
             self.reference_models.pop(0)
         self.reference_models.append(model_state)

@@ -80,20 +80,3 @@ def print_evaluation_results(metrics):
         print(f"  Recall: {r:.4f}")
         print(f"  F1-score: {f1:.4f}")
         print()
-
-def stress_test_defense(model, defender, attack_models):
-    """Validate defense system effectiveness"""
-    clean_scores = []
-    attack_scores = []
-    
-    for model_state in defender.reference_models:
-        clean_score = defender._calculate_model_score(model_state)
-        clean_scores.append(clean_score)
-        
-    for attack_model in attack_models:
-        attack_score = defender._calculate_model_score(attack_model)
-        attack_scores.append(attack_score)
-    
-    separation = np.mean(attack_scores) - np.mean(clean_scores)
-    print(f"Defense separation power: {separation:.2f}")
-    return separation > 0.5  # Empirical threshold

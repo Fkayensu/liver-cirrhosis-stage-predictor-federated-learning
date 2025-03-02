@@ -168,7 +168,9 @@ def enhanced_local_model_validation(model, x_val, y_val,
                                     accuracy_threshold=0.5,
                                     loss_threshold=1.0,
                                     adv_epsilon=0.1,
-                                    consistency_threshold=0.72):
+                                    consistency_threshold=0.72,
+                                    monitor=None
+                                    ):
     """
     Enhanced model validation to detect potential model poisoning.
     
@@ -188,6 +190,9 @@ def enhanced_local_model_validation(model, x_val, y_val,
     Returns:
       True if the model passes validation; False otherwise.
     """
+    if monitor:
+        monitor.start_timer('client_validation')
+
     model.eval()
     criterion = nn.CrossEntropyLoss()
     
@@ -204,6 +209,9 @@ def enhanced_local_model_validation(model, x_val, y_val,
         consistency = (torch.argmax(outputs, dim=1) == torch.argmax(outputs_adv, dim=1)).float().mean().item()
 
     print(f"Validation accuracy: {accuracy:.4f}, loss: {loss.item():.4f}, adversarial consistency: {consistency:.4f}")
+
+    if monitor:
+        monitor.stop_timer('client_validation')
 
     if accuracy < accuracy_threshold:
         print("Validation failed: Model accuracy is below threshold.")
