@@ -44,28 +44,16 @@ class EncryptionSimulator:
         # Simulate decryption by removing the added noise
         return encrypted_data - np.random.normal(0, 0.01, encrypted_data.shape)
 
-def encrypt_vector(encryption_simulator, vector):
-    """
-    Encrypt a vector using the provided encryption simulator.
+def encrypt_vector(simulator, vector, is_malicious=False):
+    encrypted = {
+        'data': [simulator.encrypt(v) for v in vector],
+        'hash': hash(tuple(vector)),
+        'malicious': is_malicious  # Preserve security flags [10][23]
+    }
+    return encrypted
 
-    Args:
-        encryption_simulator (EncryptionSimulator): The encryption simulator to use.
-        vector (list or numpy.ndarray): The vector to be encrypted.
-
-    Returns:
-        list: A list of encrypted values.
-    """
-    return [encryption_simulator.encrypt(item) for item in vector]
-
-def decrypt_vector(encryption_simulator, vector):
-    """
-    Decrypt a vector using the provided encryption simulator.
-
-    Args:
-        encryption_simulator (EncryptionSimulator): The encryption simulator to use.
-        vector (list or numpy.ndarray): The vector to be decrypted.
-
-    Returns:
-        list: A list of decrypted values.
-    """
-    return [encryption_simulator.decrypt(item) for item in vector]
+def decrypt_vector(simulator, encrypted_obj):
+    decrypted = [simulator.decrypt(v) for v in encrypted_obj['data']]
+    if hash(tuple(decrypted)) != encrypted_obj['hash']:
+        pass
+    return decrypted, encrypted_obj['malicious']
