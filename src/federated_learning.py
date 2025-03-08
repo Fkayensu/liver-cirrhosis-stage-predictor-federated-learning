@@ -1,5 +1,4 @@
 import torch
-import random
 from torch import nn, optim
 from torch.utils.data import DataLoader, TensorDataset
 from model import CirrhosisPredictor
@@ -12,12 +11,7 @@ from clients_defense import (
     enhanced_local_model_validation,
     client_local_train  # This can be your updated training routine with defense mechanisms.
 )
-from attack_simulation import (
-    model_poisoning_attack,
-    backdoor_attack,
-    data_poisoning_attack,
-    mitm_attack
-)
+
 def train_local_model(model, data, epochs=30, lr=0.001):
     """
     Train a local model using the provided data.
@@ -58,25 +52,40 @@ def train_local_model(model, data, epochs=30, lr=0.001):
     return model.state_dict()
 
 def aggregate_models(global_model, client_models, client_data_sizes, encryption_simulator):
+    """
+    Aggregate multiple client models into a global model using federated averaging.
+
+    This function performs a weighted average of the client models' parameters,
+    where the weights are proportional to the size of each client's dataset.
+    The client models' parameters are assumed to be encrypted and are decrypted
+    before aggregation.
+
+    Args:
+        global_model (nn.Module): The global model to be updated with aggregated parameters.
+        client_models (list): A list of state dictionaries from client models.
+        client_data_sizes (list): A list of integers representing the data size for each client.
+        encryption_simulator (object): An object with a decrypt_vector method for decrypting model parameters.
+
+    Returns:
+        None. The global_model is updated in-place.
+
+    Note:
+        - The function assumes that all client models have the same architecture as the global model.
+        - Client model parameters are expected to be encrypted and are decrypted using the provided encryption_simulator.
+        - The aggregation is done layer-wise and parameter-wise.
+        - The global model's state dict is directly updated with the aggregated parameters.
+    """
     global_state_dict = global_model.state_dict()
     total_data = sum(client_data_sizes)
     
     for key in global_state_dict.keys():
-        if isinstance(global_state_dict[key], bool):
-            # For boolean values, use majority voting
-            votes = [model[key] for model in client_models]
-            global_state_dict[key] = sum(votes) > len(votes) / 2
-        else:
-            weighted_sum = torch.zeros_like(global_state_dict[key])
-            for client_model, data_size in zip(client_models, client_data_sizes):
-                weight = data_size / total_data
-                if isinstance(client_model[key], bool):
-                    decrypted_param = client_model[key]
-                else:
-                    decrypted_param = decrypt_vector(encryption_simulator, client_model[key])
-                    decrypted_param = torch.tensor(decrypted_param).reshape(global_state_dict[key].shape)
-                weighted_sum += weight * decrypted_param
-            global_state_dict[key] = weighted_sum
+        weighted_sum = torch.zeros_like(global_state_dict[key])
+        for client_model, data_size in zip(client_models, client_data_sizes):
+            weight = data_size / total_data
+            decrypted_param = decrypt_vector(encryption_simulator, client_model[key])
+            decrypted_param = torch.tensor(decrypted_param).reshape(global_state_dict[key].shape)
+            weighted_sum += weight * decrypted_param
+        global_state_dict[key] = weighted_sum
     
     global_model.load_state_dict(global_state_dict)
 
@@ -88,11 +97,13 @@ def federated_learning_with_early_stopping(
     patience=5,
     min_delta=0.001,
     enable_defense=True,
-    monitor=None,
-    simulate_attacks=False  # New flag to control attack simulation
+    monitor=None
 ):
     """
     Perform federated learning with early stopping and enhanced security measures.
+
+    This function implements a federated learning process with various security enhancements,
+    including data validation, model validation, secure aggregation, and early stopping.
 
     Args:
         global_model (nn.Module): The initial global model to be trained.
@@ -103,163 +114,115 @@ def federated_learning_with_early_stopping(
         min_delta (float, optional): The minimum change in accuracy to qualify as an improvement. Defaults to 0.001.
         enable_defense (bool, optional): Whether to enable defense mechanisms. Defaults to True.
         monitor (object, optional): An object to record metrics during the training process. Defaults to None.
-        simulate_attacks (bool, optional): Whether to simulate attacks during training. Defaults to False.
 
     Returns:
         nn.Module: The trained global model.
+
+    Notes:
+        - The function uses enhanced data validation, model validation, and secure aggregation.
+        - It implements early stopping based on the test accuracy.
+        - Differential privacy and adversarial training are applied during client training.
+        - The function can handle up to 100 rounds of federated learning.
+        - A FederatedDefender is used for secure aggregation and model verification.
+        - Performance metrics are recorded if a monitor object is provided.
     """
-    
     max_rounds = 100
-    rollback_count = 0
-    max_rollbacks = 3
     best_accuracy = 0
     rounds_without_improvement = 0
     accuracy_history = deque(maxlen=patience)
     encryption_simulator = EncryptionSimulator()
-    
     defender = FederatedDefender(
         validation_data=(X_test_tensor, y_test_tensor),
-        warmup_rounds=3,
+        warmup_rounds=10,
         min_clients=max(5, len(client_data) // 4),
-        encryption_simulator=encryption_simulator,
-        sensitivity=5,
-        monitor=monitor
+        encryption_simulator=encryption_simulator
     )
 
     monitor.record_scalability_metrics(len(client_data), sum(len(c[0]) for c in client_data))
-
+    
     for round in range(max_rounds):
-        print(f"\nStarting Round {round+1}")
-        attack_probability = min(0.1 + (round / 50), 0.1)  # Cap at 30%
         if monitor:
             monitor.start_timer('round_time')
 
         client_models = []
         client_data_sizes = []
-
-        for client_id, (client_X, client_y) in enumerate(client_data):
-            attack_info = {'is_malicious': False}  # Default no attack
-            print(f"Client {client_id + 1} training:")
-
-            if simulate_attacks:
-                # Data Poisoning Attack
-                if random.random() < attack_probability:
-                    client_X, client_y, attack_info = data_poisoning_attack(client_X, client_y, poison_ratio=0.1)
-                    monitor.record_attack('data_poisoning')
-
-                # Backdoor Attack
-                if random.random() < attack_probability:
-                    trigger_pattern = torch.ones_like(client_X[0]) * 0.1
-                    target_label = 0
-                    client_X, client_y, attack_info = backdoor_attack(client_X, client_y, trigger_pattern, target_label, backdoor_ratio=0.1)
-                    monitor.record_attack('backdoor')
-
+        
+        # Client training phase
+        for client_X, client_y in client_data:
             # Enhanced data validation step
             if not enhanced_local_data_validation(client_X, client_y):
-                print(f"Skipping client {client_id} update due to poor data quality.")
+                print("Skipping client update due to poor data quality.")
                 continue
-
-            # Split client data into training and validation sets
+            
+            # Split client data into training and validation sets (e.g., 90/10 split)
             val_split = int(0.2 * len(client_X))
             x_train, x_val = client_X[:-val_split], client_X[-val_split:]
             y_train, y_val = client_y[:-val_split], client_y[-val_split:]
-
+            
+            # Set up and initialize the client model
             local_model = CirrhosisPredictor(global_model.fc[0].in_features)
             local_model.load_state_dict(global_model.state_dict())
-
+            
+            # Train with enhanced defenses (differential privacy, adversarial training, etc.)
             client_model_state = client_local_train(
                 local_model,
                 data=(x_train, y_train),
-                epochs=75,
-                lr=0.005,
-                enable_dp=True,
+                epochs=30,
+                lr=0.001,
+                enable_dp=True,          # Differential privacy enabled
                 dp_clip=1.0,
                 dp_noise_scale=0.01,
-                enable_adv=True,
+                enable_adv=True,         # Adversarial training enabled
                 adv_epsilon=0.1,
                 adv_ratio=0.5,
-                local_val_data=(x_val, y_val)
+                local_val_data=(x_val, y_val)  # Validate during training
             )
-
-            # Model Poisoning Attack
-            if simulate_attacks and random.random() < attack_probability:
-                client_model_state = model_poisoning_attack(client_model_state, attack_strength=2.0)
-                attack_info['is_malicious'] = True  # Update attack info
-                monitor.record_attack('model_poisoning')
-
-            # Enhanced model validation
+            
+            # Perform enhanced model validation on the client’s local validation set
             if not enhanced_local_model_validation(
                 local_model, x_val, y_val,
                 accuracy_threshold=0.5,
                 loss_threshold=1.0,
                 adv_epsilon=0.1,
-                consistency_threshold=0.72,
-                monitor=monitor
+                consistency_threshold=0.72
             ):
-                print(f"Skipping client {client_id} update due to model poisoning detection.")
+                print("Skipping client update due to model poisoning detection.")
                 continue
-
-            # Encrypt the local model state with attack info
+            
+            # Encrypt the local model state for secure aggregation
             encrypted_state = {
-                k: encrypt_vector(encryption_simulator, v.flatten()) if not isinstance(v, bool) else v
+                k: encrypt_vector(encryption_simulator, v.flatten())
                 for k, v in client_model_state.items()
             }
-
-            encrypted_state.update(attack_info)  # Add attack info (e.g., is_malicious)
-
-            # MITM Attack
-            if simulate_attacks and random.random() < attack_probability:
-                encrypted_state = mitm_attack(encrypted_state, attack_strength=2.0)
-                monitor.record_attack('mitm')
-
-                if 'is_malicious' not in encrypted_state:
-                    encrypted_state['is_malicious'] = True
-
             client_models.append(encrypted_state)
             client_data_sizes.append(len(x_train))
-
+        
         # Secure aggregation with defense mechanisms
         if enable_defense:
-            filtered_models = defender.analyze_models(client_models, encryption_simulator)  # Analyze before aggregation
-            filtered_sizes = [client_data_sizes[i] for i, m in enumerate(client_models) if m in filtered_models]
-            if not filtered_models:
-                print(f"Round {round+1}: No valid client updates, skipping aggregation")
-                continue
-            global_model = defender.secure_aggregate(global_model, filtered_models, filtered_sizes)
-            if enable_defense and not defender.verify_global_model(global_model) and rollback_count < max_rollbacks:
-                print("Model rollback due to verification failure")
-                if defender.best_global_model:
-                    global_model.load_state_dict(defender.best_global_model)
-                rollback_count += 1
-                # Allow partial update with filtered models if any
-                if filtered_models:
-                    global_model = defender.secure_aggregate(global_model, filtered_models, filtered_sizes)
-                continue
-        else:
-            aggregate_models(global_model, client_models, client_data_sizes, encryption_simulator)
-
+            global_model = defender.secure_aggregate(global_model, client_models, client_data_sizes)
+        
         # Verify global model quality; rollback if necessary
-        if enable_defense and not defender.verify_global_model(global_model):
+        if not defender.verify_global_model(global_model):
             print("Model rollback due to verification failure")
             rounds_without_improvement += 1
             continue
-
-        if enable_defense:
-            defender.update_reference(global_model.state_dict())
+        
+        defender.update_reference(global_model.state_dict())
 
         if monitor:
+            # Ensure timer is always stopped even if error occurs
             try:
                 monitor.stop_timer('round_time')
             except KeyError:
                 pass
-
+        
         # Evaluate updated global model
         test_accuracy = evaluate_model(global_model, X_test_tensor, y_test_tensor)
         print(f"Round {round+1}, Test Accuracy: {test_accuracy:.4f}")
 
         if monitor:
             monitor.metrics['performance']['accuracy'].append(test_accuracy)
-
+        
         # Early stopping check
         if test_accuracy > best_accuracy + min_delta:
             best_accuracy = test_accuracy
@@ -267,12 +230,8 @@ def federated_learning_with_early_stopping(
         else:
             rounds_without_improvement += 1
         
-        print(f"Round {round+1} completed. Test Accuracy: {test_accuracy:.4f}")
-        print(f"Current best accuracy: {best_accuracy:.4f}")
-        print(f"Rounds without improvement: {rounds_without_improvement}")
-
         if rounds_without_improvement >= patience:
             print(f"Early stopping triggered. Best accuracy: {best_accuracy:.4f}")
             break
-
+    
     return global_model

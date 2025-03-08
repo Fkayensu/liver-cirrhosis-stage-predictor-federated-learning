@@ -28,8 +28,7 @@ def main():
         X_test_tensor,
         y_test_tensor,
         monitor=monitor,
-        enable_defense=True,
-        simulate_attacks=True
+        enable_defense=True
     )
     
     # Final evaluation

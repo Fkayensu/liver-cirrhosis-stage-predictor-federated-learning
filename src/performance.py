@@ -14,16 +14,8 @@ class PerformanceMonitor:
         self.client_counts = []
         self.data_sizes = []
         self.round_timestamps = []  # Track round completion order
-        self.attack_counters = {
-            'data_poisoning': 0,
-            'model_poisoning': 0,
-            'backdoor': 0,
-            'mitm': 0
-        }
 
-    def record_attack(self, attack_type):
-        self.attack_counters[attack_type] += 1
-
+    
     def start_timer(self, name):
         self.timers[name] = time.time()
 
@@ -70,22 +62,34 @@ class PerformanceMonitor:
             'client_efficiency': client_eff,
             'data_efficiency': data_eff
         }
-
-    def safe_mean(self, arr):
-        if len(arr) == 0:
-            return 0  # or np.nan
-        return np.mean(arr)
-
-    def safe_divide(self, numerator, denominator):
-        if denominator == 0:
-            return 0  # or np.nan, depending on your preference
-        return numerator / denominator
+    
+    def record_security_event(self, client_id, is_attack, detected):
+        self.metrics['security']['true_positives'].append(is_attack and detected)
+        self.metrics['security']['false_positives'].append(not is_attack and detected)
+        self.metrics['security']['true_negatives'].append(not is_attack and not detected)
+        self.metrics['security']['false_negatives'].append(is_attack and not detected)
+    
+    def calculate_security_metrics(self):
+        tp = sum(self.metrics['security']['true_positives'])
+        fp = sum(self.metrics['security']['false_positives'])
+        tn = sum(self.metrics['security']['true_negatives'])
+        fn = sum(self.metrics['security']['false_negatives'])
+        
+        detection_rate = tp / (tp + fn) if (tp + fn) > 0 else 0
+        false_positive_rate = fp / (fp + tn) if (fp + tn) > 0 else 0
+        
+        return {
+            'detection_rate': detection_rate,
+            'false_positive_rate': false_positive_rate,
+            'precision': tp / (tp + fp) if (tp + fp) > 0 else 0,
+            'recall': detection_rate
+        }
     
     def calculate_performance_metrics(self):
         return {
-            'avg_aggregation_latency': self.safe_mean(self.metrics['performance'].get('aggregation_latency', [])),
-            'avg_validation_latency': self.safe_mean(self.metrics['performance'].get('validation_latency', [])),
-            'avg_round_time': self.safe_mean(self.metrics['performance'].get('round_latency', []))
+            'avg_aggregation_latency': np.mean(self.metrics['performance'].get('aggregation_latency', [])),
+            'avg_validation_latency': np.mean(self.metrics['performance'].get('validation_latency', [])),
+            'avg_round_time': np.mean(self.metrics['performance'].get('round_latency', []))
         }
     
     def generate_report(self):
@@ -97,10 +101,6 @@ class PerformanceMonitor:
 
     def print_detailed_report(self):
         report = self.generate_report()
-
-        print("\n=== Attack Counters ===")
-        for attack_type, count in self.attack_counters.items():
-            print(f"{attack_type.capitalize()} Attacks: {count}")
         
         print("\n=== Security Metrics ===")
         print(f"Attack Detection Rate: {report['security']['detection_rate']:.2%}")
@@ -116,29 +116,3 @@ class PerformanceMonitor:
         print("\n=== Scalability Metrics ===")
         print(f"Client Efficiency Slope: {report['scalability']['client_efficiency']:.4f}")
         print(f"Data Efficiency Slope: {report['scalability']['data_efficiency']:.4f}")
-
-    def record_security_event(self, client_id, is_attack, detected):
-        self.metrics['security']['true_positives'].append(1 if is_attack and detected else 0)
-        self.metrics['security']['false_positives'].append(1 if not is_attack and detected else 0)
-        self.metrics['security']['true_negatives'].append(1 if not is_attack and not detected else 0)
-        self.metrics['security']['false_negatives'].append(1 if is_attack and not detected else 0)
-
-    def calculate_security_metrics(self):
-        tp = sum(self.metrics['security']['true_positives'])
-        fp = sum(self.metrics['security']['false_positives'])
-        tn = sum(self.metrics['security']['true_negatives'])
-        fn = sum(self.metrics['security']['false_negatives'])
-        
-        print(f"TP: {tp}, FP: {fp}, TN: {tn}, FN: {fn}")  # Debug output
-        
-        detection_rate = self.safe_divide(tp, tp + fn)
-        false_positive_rate = self.safe_divide(fp, fp + tn)
-        precision = self.safe_divide(tp, tp + fp)
-        recall = detection_rate
-        
-        return {
-            'detection_rate': detection_rate,
-            'false_positive_rate': false_positive_rate,
-            'precision': precision,
-            'recall': recall
-        }

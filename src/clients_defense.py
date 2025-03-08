@@ -92,9 +92,9 @@ def local_model_validation(model, x_val, y_val, accuracy_threshold=0.5):
 # Integrated Client Training Function
 ######################################################################
 
-def client_local_train(model, data, epochs=50, lr=0.0005,
-                       enable_dp=True, dp_clip=1.0, dp_noise_scale=0.01,
-                       enable_adv=True, adv_epsilon=0.1, adv_ratio=0.5,
+def client_local_train(model, data, epochs=30, lr=0.001,
+                       enable_dp=False, dp_clip=1.0, dp_noise_scale=0.01,
+                       enable_adv=False, adv_epsilon=0.1, adv_ratio=0.5,
                        local_val_data=None):
     """
     Extended local training routine that integrates:
@@ -164,7 +164,32 @@ def client_local_train(model, data, epochs=50, lr=0.0005,
     
     return model.state_dict()
 
-def enhanced_local_model_validation(model, x_val, y_val, accuracy_threshold=0.5, loss_threshold=1.0, adv_epsilon=0.1, consistency_threshold=0.75, monitor=None):
+def enhanced_local_model_validation(model, x_val, y_val,
+                                    accuracy_threshold=0.5,
+                                    loss_threshold=1.0,
+                                    adv_epsilon=0.1,
+                                    consistency_threshold=0.72,
+                                    monitor=None
+                                    ):
+    """
+    Enhanced model validation to detect potential model poisoning.
+    
+    Validates that:
+      - The model achieves a minimum accuracy on clean validation data.
+      - The validation loss is within an acceptable range.
+      - The model exhibits consistent predictions when evaluated on adversarial examples.
+    
+    Parameters:
+      model               : PyTorch model (e.g. an instance of CirrhosisPredictor).
+      x_val, y_val        : Validation data.
+      accuracy_threshold  : Minimum acceptable accuracy.
+      loss_threshold      : Maximum acceptable loss.
+      adv_epsilon         : Perturbation magnitude for adversarial example generation.
+      consistency_threshold: Minimum fraction of matching predictions on original and adversarial data.
+    
+    Returns:
+      True if the model passes validation; False otherwise.
+    """
     if monitor:
         monitor.start_timer('client_validation')
 
@@ -177,31 +202,31 @@ def enhanced_local_model_validation(model, x_val, y_val, accuracy_threshold=0.5,
         _, preds = torch.max(outputs, 1)
         accuracy = (preds == y_val).float().mean().item()
     
+    # Generate adversarial examples and compute prediction consistency
     adv_examples = generate_adversarial_examples(model, criterion, x_val, y_val, epsilon=adv_epsilon)
     with torch.no_grad():
         outputs_adv = model(adv_examples)
         consistency = (torch.argmax(outputs, dim=1) == torch.argmax(outputs_adv, dim=1)).float().mean().item()
 
-    # Adaptive thresholds
-    round_count = len(monitor.metrics['performance'].get('accuracy', [])) if monitor else 0
-    global_acc = monitor.metrics['performance'].get('accuracy', [0.5])[-1] if monitor else 0.5
-    accuracy_threshold = max(0.5, global_acc - 0.15)  # Lower buffer to 0.15
-    loss_threshold = min(1.5, 1.0 + 0.05 * (len(monitor.metrics['performance'].get('accuracy', [])) if monitor else 0))
+    print(f"Validation accuracy: {accuracy:.4f}, loss: {loss.item():.4f}, adversarial consistency: {consistency:.4f}")
 
-    print(f"Validation accuracy: {accuracy:.4f}, loss: {loss.item():.4f}, adversarial consistency: {consistency:.4f}, thresholds: acc={accuracy_threshold:.4f}, loss={loss_threshold:.4f}")
+    if monitor:
+        monitor.stop_timer('client_validation')
 
     if accuracy < accuracy_threshold:
-        print(f"Validation failed: Model accuracy {accuracy:.4f} below threshold {accuracy_threshold:.4f}")
+        print("Validation failed: Model accuracy is below threshold.")
         return False
     if loss.item() > loss_threshold:
-        print(f"Validation failed: Model loss {loss.item():.4f} above threshold {loss_threshold:.4f}")
+        print("Validation failed: Model loss is above threshold.")
         return False
     if consistency < consistency_threshold:
-        print(f"Validation failed: Model predictions inconsistent, consistency {consistency:.4f} < {consistency_threshold:.4f}")
+        print("Validation failed: Model predictions are inconsistent on adversarial examples, possible poisoning detected.")
         return False
 
     print("Enhanced model validation passed.")
     return True
+
+import torch
 
 def enhanced_local_data_validation(x, y, cl_range=3.0, min_label_prop=0.05):
     """
