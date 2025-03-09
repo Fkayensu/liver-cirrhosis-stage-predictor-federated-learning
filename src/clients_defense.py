@@ -165,10 +165,10 @@ def client_local_train(model, data, epochs=30, lr=0.001,
     return model.state_dict()
 
 def enhanced_local_model_validation(model, x_val, y_val,
-                                    accuracy_threshold=0.5,
+                                    accuracy_threshold=0.52,
                                     loss_threshold=1.0,
                                     adv_epsilon=0.1,
-                                    consistency_threshold=0.72,
+                                    consistency_threshold=0.7,
                                     monitor=None
                                     ):
     """
@@ -191,7 +191,7 @@ def enhanced_local_model_validation(model, x_val, y_val,
       True if the model passes validation; False otherwise.
     """
     if monitor:
-        monitor.start_timer('client_validation')
+        monitor.start_timer('validation')
 
     model.eval()
     criterion = nn.CrossEntropyLoss()
@@ -202,31 +202,55 @@ def enhanced_local_model_validation(model, x_val, y_val,
         _, preds = torch.max(outputs, 1)
         accuracy = (preds == y_val).float().mean().item()
     
-    # Generate adversarial examples and compute prediction consistency
-    adv_examples = generate_adversarial_examples(model, criterion, x_val, y_val, epsilon=adv_epsilon)
-    with torch.no_grad():
-        outputs_adv = model(adv_examples)
-        consistency = (torch.argmax(outputs, dim=1) == torch.argmax(outputs_adv, dim=1)).float().mean().item()
+    # # Generate adversarial examples and compute prediction consistency
+    # adv_examples = generate_adversarial_examples(model, criterion, x_val, y_val, epsilon=adv_epsilon)
+    # with torch.no_grad():
+    #     outputs_adv = model(adv_examples)
+    #     consistency = (torch.argmax(outputs, dim=1) == torch.argmax(outputs_adv, dim=1)).float().mean().item()
 
+    adv_examples = fgsm_attack(model, x_val, y_val, adv_epsilon)
+    with torch.no_grad():
+        adv_outputs = model(adv_examples)
+        _, adv_preds = torch.max(adv_outputs, 1)
+        adv_accuracy = (adv_preds == y_val).float().mean().item()
+        consistency = (preds == adv_preds).float().mean().item()
+
+    # print(f"Local model validation accuracy: {accuracy:.4f}")
     print(f"Validation accuracy: {accuracy:.4f}, loss: {loss.item():.4f}, adversarial consistency: {consistency:.4f}")
 
+    is_valid = (accuracy >= accuracy_threshold and 
+                loss <= loss_threshold and 
+                consistency >= consistency_threshold)
+
     if monitor:
-        monitor.stop_timer('client_validation')
+        monitor.stop_timer('validation')
 
-    if accuracy < accuracy_threshold:
-        print("Validation failed: Model accuracy is below threshold.")
-        return False
-    if loss.item() > loss_threshold:
-        print("Validation failed: Model loss is above threshold.")
-        return False
-    if consistency < consistency_threshold:
-        print("Validation failed: Model predictions are inconsistent on adversarial examples, possible poisoning detected.")
-        return False
+    return is_valid
 
-    print("Enhanced model validation passed.")
-    return True
+def fgsm_attack(model, data, target, epsilon):
+    data.requires_grad = True
+    output = model(data)
+    loss = torch.nn.CrossEntropyLoss()(output, target)
+    model.zero_grad()
+    loss.backward()
+    data_grad = data.grad.data
+    perturbed_data = data + epsilon * data_grad.sign()
+    return perturbed_data
+    # if monitor:
+    #     monitor.stop_timer('validation')
 
-import torch
+    # if accuracy < accuracy_threshold:
+    #     print("Validation failed: Model accuracy is below threshold.")
+    #     return False
+    # if loss.item() > loss_threshold:
+    #     print("Validation failed: Model loss is above threshold.")
+    #     return False
+    # if consistency < consistency_threshold:
+    #     print("Validation failed: Model predictions are inconsistent on adversarial examples, possible poisoning detected.")
+    #     return False
+
+    # print("Enhanced model validation passed.")
+    # return True
 
 def enhanced_local_data_validation(x, y, cl_range=3.0, min_label_prop=0.05):
     """
@@ -270,3 +294,15 @@ def enhanced_local_data_validation(x, y, cl_range=3.0, min_label_prop=0.05):
 
     print("Enhanced data validation passed.")
     return True
+
+# def enhanced_local_data_validation(x, y):
+#     # Basic outlier detection
+#     mean_x = torch.mean(x, dim=0)
+#     std_x = torch.std(x, dim=0)
+#     z_scores = torch.abs((x - mean_x) / (std_x + 1e-8))
+#     outlier_fraction = (z_scores > 3).float().mean()
+#     if outlier_fraction > 0.1:
+#         print("Validation warning: Unusual fraction of outliers detected in one or more features.")
+#         return False
+#     print("Enhanced data validation passed.")
+#     return True
