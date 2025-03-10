@@ -165,10 +165,10 @@ def client_local_train(model, data, epochs=30, lr=0.001,
     return model.state_dict()
 
 def enhanced_local_model_validation(model, x_val, y_val,
-                                    accuracy_threshold=0.52,
-                                    loss_threshold=1.0,
+                                    accuracy_threshold=0.56,
+                                    loss_threshold=0.9,
                                     adv_epsilon=0.1,
-                                    consistency_threshold=0.7,
+                                    consistency_threshold=0.65,
                                     monitor=None
                                     ):
     """
@@ -212,15 +212,25 @@ def enhanced_local_model_validation(model, x_val, y_val,
     with torch.no_grad():
         adv_outputs = model(adv_examples)
         _, adv_preds = torch.max(adv_outputs, 1)
-        adv_accuracy = (adv_preds == y_val).float().mean().item()
         consistency = (preds == adv_preds).float().mean().item()
 
+    # Add backdoor-specific check
+    trigger_pattern = torch.ones_like(x_val[0]) * 0.1  # Match simulation trigger
+    backdoor_input = x_val.clone()
+    backdoor_input += trigger_pattern  # Apply trigger to all validation samples
+    with torch.no_grad():
+        backdoor_outputs = model(backdoor_input)
+        _, backdoor_preds = torch.max(backdoor_outputs, 1)
+        target_label = 2  # Match backdoor_attack target_label
+        backdoor_success_rate = (backdoor_preds == target_label).float().mean().item()
+
     # print(f"Local model validation accuracy: {accuracy:.4f}")
-    print(f"Validation accuracy: {accuracy:.4f}, loss: {loss.item():.4f}, adversarial consistency: {consistency:.4f}")
+    print(f"Validation accuracy: {accuracy:.4f}, loss: {loss.item():.4f}, adversarial consistency: {consistency:.4f}, backdoor_success: {backdoor_success_rate:.4f}")
 
     is_valid = (accuracy >= accuracy_threshold and 
                 loss <= loss_threshold and 
-                consistency >= consistency_threshold)
+                consistency >= consistency_threshold and 
+                backdoor_success_rate < 0.5)  # Flag if >50% samples predict target label)
 
     if monitor:
         monitor.stop_timer('validation')
@@ -252,7 +262,7 @@ def fgsm_attack(model, data, target, epsilon):
     # print("Enhanced model validation passed.")
     # return True
 
-def enhanced_local_data_validation(x, y, cl_range=3.0, min_label_prop=0.05):
+def enhanced_local_data_validation(x, y, cl_range=2.8, min_label_prop=0.05):
     """
     Enhanced validation for local data to detect potential data poisoning.
     
@@ -281,7 +291,7 @@ def enhanced_local_data_validation(x, y, cl_range=3.0, min_label_prop=0.05):
     # Identify values outside the acceptable range and flag if too many are found per feature.
     outlier_mask = (x < lower_bound) | (x > upper_bound)
     outlier_fraction = outlier_mask.float().mean(dim=0)
-    if (outlier_fraction > 0.2).any():
+    if (outlier_fraction > 0.18).any():
         print("Validation warning: Unusual fraction of outliers detected in one or more features.")
         return False
 

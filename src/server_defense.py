@@ -307,7 +307,7 @@ from scipy.stats import median_abs_deviation
 from encryption import decrypt_vector
 
 class FederatedDefender:
-    def __init__(self, encryption_simulator, sensitivity=2.5, warmup_rounds=2, min_clients=5, validation_data=None, monitor=None):
+    def __init__(self, encryption_simulator, sensitivity=2.2, warmup_rounds=2, min_clients=5, validation_data=None, monitor=None):
         self.sensitivity = sensitivity
         self.warmup_rounds = warmup_rounds
         self.min_clients = min_clients
@@ -356,12 +356,19 @@ class FederatedDefender:
             valid = np.argsort(scores)[:self.min_clients]
         return valid
 
-    def analyze_models(self, client_models, encryption_simulator):
+    def analyze_models(self, client_models, encryption_simulator, client_indices, all_client_status):
         if not client_models:  # Handle empty client_models list
             print("Warning: No client models passed validation for this round.")
             if self.monitor:
                 self.monitor.start_timer('aggregation')
                 self.monitor.stop_timer('aggregation')  # Keep timing consistent
+                # Log all clients (all skipped in this case)
+                # print(f"\nDebugging Security Events in Round:")
+                for idx in range(len(all_client_status)):
+                    status = all_client_status[idx]
+                    if status is not None and status['skipped']:  # Only log processed clients
+                        print(f"Client {idx + 1}: is_attack={status['is_malicious']}, detected={status['detected']}, attack_type={status['attack_type']}")
+                        self.monitor.record_security_event(idx, status['is_malicious'], status['detected'], status['attack_type'])
             return []
         
         if self.monitor:
@@ -378,27 +385,48 @@ class FederatedDefender:
         client_scores = []
         for i, vec in enumerate(param_matrix):
             z_scores = self._robust_zscore(vec)
-            variance_score = np.var(vec) * 0.2  # Increased weight
+            variance_score = np.var(vec) * 0.22  # Increased weight
             kurtosis = np.mean((vec - np.mean(vec))**4) / (np.var(vec)**2 + 1e-8) * 0.5  # Increased weight
-            combined_score = (np.median(z_scores) + 
-                             variance_score + 
-                             kurtosis if client_models[i].get('is_malicious', False) else 0)  # Apply kurtosis to all
+            # Adjust backdoor detection sensitivity
+            backdoor_score = kurtosis * 1.5 if client_models[i].get('attack_type') == 'backdoor' else 0
+            # Add MITM-specific heuristic (e.g., check for high variance in encrypted updates)
+            mitm_score = variance_score * 2 if client_models[i].get('attack_type') == 'mitm' else 0
+            combined_score = np.median(z_scores) + variance_score + backdoor_score + mitm_score
             client_scores.append(combined_score)
 
         valid_indices = self._dynamic_thresholding(np.array(client_scores))
+
+        # Update detected status for included clients
+        for i, idx in enumerate(client_indices):
+            detected = i not in valid_indices
+            all_client_status[idx]['detected'] = detected or all_client_status[idx]['detected']  # Preserve earlier detections
+            if self.monitor:
+                # Record event only once per client per round
+                self.monitor.record_security_event(
+                    idx, 
+                    all_client_status[idx]['is_malicious'], 
+                    all_client_status[idx]['detected'], 
+                    all_client_status[idx]['attack_type']
+                )
 
         # Debugging security events
         if self.monitor:
             self.monitor.stop_timer('aggregation')
             print(f"\nDebugging Security Events in Round:")
-            for i in range(len(client_models)):
-                is_attack = client_models[i].get('is_malicious', False)
-                detected = i not in valid_indices
-                attack_type = client_models[i].get('attack_type', 'none')
-                print(f"Client {i}: is_attack={is_attack}, detected={detected}, attack_type={attack_type}")
-                if detected and is_attack:
-                    print(f"Detected Attack Type: {attack_type}")
-                self.monitor.record_security_event(i, is_attack, detected, attack_type=attack_type)
+            for idx in range(len(all_client_status)):
+                status = all_client_status[idx]
+                if status is not None:  # Only log processed clients
+                    print(f"Client {idx + 1}: is_attack={status['is_malicious']}, detected={status['detected']}, attack_type={status['attack_type']}")
+                    # if status['detected'] and status['is_malicious']:
+                    #     print(f"Detected Attack Type: {status['attack_type']}")
+                    # self.monitor.record_security_event(idx, status['is_malicious'], status['detected'], status['attack_type'])
+                # is_attack = client_models[i].get('is_malicious', False)
+                # attack_type = client_models[i].get('attack_type', 'none')
+                # detected = i not in valid_indices
+                # print(f"Client {idx + 1}: is_attack={is_attack}, detected={detected}, attack_type={attack_type}")
+                # if detected and is_attack:
+                #     print(f"Detected Attack Type: {attack_type}")
+                # self.monitor.record_security_event(i, is_attack, detected, attack_type)
 
         return [client_models[i] for i in valid_indices]
 

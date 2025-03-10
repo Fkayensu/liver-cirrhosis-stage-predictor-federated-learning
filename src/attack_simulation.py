@@ -2,7 +2,7 @@ import torch
 import random
 import numpy as np
 
-def data_poisoning_attack(X, y, poison_ratio=0.1):
+def data_poisoning_attack(X, y, poison_ratio=0.3):
     """
     Simulate a data poisoning attack by flipping labels for a portion of the data.
     
@@ -56,8 +56,8 @@ def backdoor_attack(X, y, trigger_pattern, target_label, backdoor_ratio=0.1):
     for idx in backdoored_indices:
         X_backdoored[idx] += trigger_pattern
         y_backdoored[idx] = target_label
-    
-    return X_backdoored, y_backdoored, {'is_malicious': True}
+    attack_info = {'is_malicious': True, 'attack_type': 'backdoor'}
+    return X_backdoored, y_backdoored, attack_info
 
 # In attack_simulation.py
 def mitm_attack(model_update, attack_strength=2.0):
