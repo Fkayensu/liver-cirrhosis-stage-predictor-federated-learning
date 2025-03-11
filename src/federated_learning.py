@@ -138,6 +138,9 @@ def federated_learning_with_early_stopping(
     
     monitor.record_scalability_metrics(len(client_data), sum(len(c[0]) for c in client_data))
     
+    # Add list to store accuracies per round
+    round_accuracies = []
+
     for round in range(max_rounds):
         print(f"\nRound {round + 1} training:\n")
         if monitor:
@@ -286,6 +289,7 @@ def federated_learning_with_early_stopping(
         
         test_accuracy = evaluate_model(global_model, X_test_tensor, y_test_tensor)
         print(f"Round {round+1}, Test Accuracy: {test_accuracy:.4f}")
+        round_accuracies.append(test_accuracy)  # Store accuracy
         if past_warmup:
             print(f"Attacks in Round {round+1} (counted post-warmup): {round_attack_counters}")
         else:
@@ -312,4 +316,4 @@ def federated_learning_with_early_stopping(
     for attack_type, count in post_warmup_attack_counters.items():
         print(f"{attack_type.replace('_', ' ').title()}: {count} instances")
     
-    return global_model
+    return global_model, round_accuracies
