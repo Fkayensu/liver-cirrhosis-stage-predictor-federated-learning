@@ -290,10 +290,6 @@ def federated_learning_with_early_stopping(
         test_accuracy = evaluate_model(global_model, X_test_tensor, y_test_tensor)
         print(f"Round {round+1}, Test Accuracy: {test_accuracy:.4f}")
         round_accuracies.append(test_accuracy)  # Store accuracy
-        if past_warmup:
-            print(f"Attacks in Round {round+1} (counted post-warmup): {round_attack_counters}")
-        else:
-            print(f"Round {round+1} (warmup phase): {round_attack_counters}")
 
         if monitor:
             monitor.metrics['performance']['accuracy'].append(test_accuracy)

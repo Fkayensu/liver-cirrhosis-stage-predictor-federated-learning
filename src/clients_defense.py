@@ -241,7 +241,7 @@ def fgsm_attack(model, data, target, epsilon):
     perturbed_data = data + epsilon * data_grad.sign()
     return perturbed_data
 
-def enhanced_local_data_validation(x, y, cl_range=2.8, min_label_prop=0.05):
+def enhanced_local_data_validation(x, y, cl_range=2.8, min_label_prop=0.04):
     """
     Enhanced validation for local data to detect potential data poisoning.
     
