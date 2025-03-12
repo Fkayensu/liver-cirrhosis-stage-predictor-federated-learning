@@ -106,7 +106,7 @@ def federated_learning_with_early_stopping(
     enable_defense=True,
     monitor=None
 ):
-    max_rounds = 8
+    max_rounds = 4
     warmup_rounds = 2
     best_accuracy = 0
     rounds_without_improvement = 0

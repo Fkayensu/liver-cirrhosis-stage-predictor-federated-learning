@@ -154,6 +154,10 @@ if __name__ == "__main__":
         print("\nDefense Framework Performance Analysis:")
         monitor.print_detailed_report()
 
+        # *** Add this line to collect performance metrics after each run ***
+        report = monitor.generate_report()
+        run_metrics.append(report['performance'])
+
         # --- Model Performance Metrics ---
         y_true = y_test_tensor.numpy()
         y_scores = trained_model(X_test_tensor).detach().numpy()
@@ -238,4 +242,49 @@ if __name__ == "__main__":
     plt.legend()
     plt.grid(True)
     plt.savefig(f'acc_trend_sec_{run + 1}.png')
+    plt.show()
+
+    # *** Add this code after the loop to generate the table and bar chart ***
+    # Print latency table
+    print("\n=== Latency Metrics Across Runs ===")
+    print(f"{'Run':<5} | {'Aggregation Latency':<20} | {'Validation Latency':<20} | {'Average Round Time':<20}")
+    print("-" * 70)
+    for i, metrics in enumerate(run_metrics, 1):
+        agg_lat = metrics.get('avg_aggregation_latency', 0)
+        val_lat = metrics.get('avg_validation_latency', 0)
+        round_lat = metrics.get('avg_round_latency', 0)
+        print(f"{i:<5} | {agg_lat:<20.4f} | {val_lat:<20.4f} | {round_lat:<20.4f}")
+
+    # Calculate averages across runs
+    avg_agg = np.mean([m.get('avg_aggregation_latency', 0) for m in run_metrics])
+    avg_val = np.mean([m.get('avg_validation_latency', 0) for m in run_metrics])
+    avg_round = np.mean([m.get('avg_round_latency', 0) for m in run_metrics])
+    print(f"{'Avg':<5} | {avg_agg:<20.4f} | {avg_val:<20.4f} | {avg_round:<20.4f}")
+
+    # Plot bar chart
+    metrics_names = ['Aggregation Latency', 'Validation Latency', 'Average Round Time']
+    runs = ['Run 1', 'Run 2', 'Run 3']
+    data = {
+        'Aggregation Latency': [max(m.get('avg_aggregation_latency', 0), 1e-6) for m in run_metrics],
+        'Validation Latency': [max(m.get('avg_validation_latency', 0), 1e-6) for m in run_metrics],
+        'Average Round Time': [max(m.get('avg_round_latency', 0), 1e-6) for m in run_metrics]
+    }
+
+    # Create figure
+    plt.figure(figsize=(12, 6))
+    x = np.arange(len(runs))
+    width = 0.25
+    plt.bar(x - width, [data['Aggregation Latency'][i] for i in range(len(runs))], width, label='Aggregation Latency', color='skyblue')
+    plt.bar(x, [data['Validation Latency'][i] for i in range(len(runs))], width, label='Validation Latency', color='lightgreen')
+    plt.bar(x + width, [data['Average Round Time'][i] for i in range(len(runs))], width, label='Average Round Time', color='salmon')
+    plt.yscale('log')
+    plt.xlabel('Test Run', fontsize=16)
+    plt.ylabel('Time (seconds, log scale)', fontsize=16)
+    plt.title('Performance Metrics Across Test Runs', fontsize=16)
+    plt.xticks(x, runs, fontsize=13)
+    plt.yticks(fontsize=13)
+    plt.legend()
+    plt.grid(True, alpha=0.3, which="both")
+    plt.tight_layout()
+    plt.savefig('performance_metrics.png')
     plt.show()
