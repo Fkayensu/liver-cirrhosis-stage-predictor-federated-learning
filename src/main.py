@@ -126,7 +126,7 @@ if __name__ == "__main__":
     # *** Add this line to store performance metrics across runs ***
     run_metrics = []
 
-    for run in range(3):
+    for run in range(1):
         print(f"\n--- Test Run {run + 1} ---")
         
         monitor = PerformanceMonitor()
@@ -287,4 +287,86 @@ if __name__ == "__main__":
     plt.grid(True, alpha=0.3, which="both")
     plt.tight_layout()
     plt.savefig('performance_metrics.png')
+    plt.show()
+
+    print("\n=== Scalability Experiment ===")
+    client_counts = list(range(2, 21, 2))
+    scalability_data = []
+
+    for num_clients in client_counts:
+        print(f"\nRunning with {num_clients} clients")
+        monitor = PerformanceMonitor()
+        
+        # Load and preprocess data
+        file_path = '/Users/frederickayensu/jupyter-1.0.0/Federated_Learning/liver_cirrhosis.csv'
+        X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor = load_and_preprocess_data(file_path)
+        
+        # Split data among clients
+        client_data = split_data_among_clients(X_train_tensor, y_train_tensor, num_clients)
+        
+        # Initialize model
+        input_dim = X_train_tensor.shape[1]
+        global_model = CirrhosisPredictor(input_dim)
+        
+        # Run federated learning for 5 rounds
+        trained_model, round_accuracies, security_true_labels, security_pred_labels, security_scores = federated_learning_with_early_stopping(
+            global_model,
+            client_data,
+            X_test_tensor,
+            y_test_tensor,
+            monitor=monitor,
+            enable_defense=True,
+            max_rounds=5,
+            patience=10
+        )
+        
+        # Extract performance metrics
+        report = monitor.generate_report()
+        performance = report['performance']
+        agg_lat = performance.get('avg_aggregation_latency', 0)
+        val_lat = performance.get('avg_validation_latency', 0)
+        round_lat = performance.get('avg_round_latency', 0)
+        
+        # Store results
+        scalability_data.append({
+            'num_clients': num_clients,
+            'agg_latency': agg_lat,
+            'val_latency': val_lat,
+            'round_latency': round_lat
+        })
+
+    # Create and print the table
+    print("\n=== Scalability Metrics Table ===")
+    print(f"{'Clients':<10} | {'Agg Latency':<15} | {'Val Latency':<15} | {'Round Time':<15}")
+    print("-" * 60)
+    for data in scalability_data:
+        print(f"{data['num_clients']:<10} | {data['agg_latency']:<15.4f} | {data['val_latency']:<15.4f} | {data['round_latency']:<15.4f}")
+
+    # Create the line graph
+    plt.figure(figsize=(10, 6))
+    plt.plot(
+        [d['num_clients'] for d in scalability_data],
+        [d['agg_latency'] for d in scalability_data],
+        label='Aggregation Latency',
+        marker='o'
+    )
+    plt.plot(
+        [d['num_clients'] for d in scalability_data],
+        [d['val_latency'] for d in scalability_data],
+        label='Validation Latency',
+        marker='o'
+    )
+    plt.plot(
+        [d['num_clients'] for d in scalability_data],
+        [d['round_latency'] for d in scalability_data],
+        label='Average Round Time',
+        marker='o'
+    )
+    plt.xlabel('Number of Clients')
+    plt.ylabel('Time (s)')
+    plt.title('Scalability Metrics vs Number of Clients')
+    plt.yscale('log')  # Logarithmic scale for y-axis
+    plt.legend()
+    plt.grid(True)
+    plt.savefig('scalability_metrics.png')
     plt.show()
