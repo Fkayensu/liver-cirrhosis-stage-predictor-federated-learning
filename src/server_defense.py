@@ -66,7 +66,7 @@ class FederatedDefender:
                     if status is not None and status['skipped']:  # Only log processed clients
                         print(f"Client {idx + 1}: is_attack={status['is_malicious']}, detected={status['detected']}, attack_type={status['attack_type']}")
                         self.monitor.record_security_event(idx, status['is_malicious'], status['detected'], status['attack_type'])
-            return []
+            return [], []
         
         if self.monitor:
             self.monitor.start_timer('aggregation')
@@ -115,7 +115,7 @@ class FederatedDefender:
                 if status is not None:  # Only log processed clients
                     print(f"Client {idx + 1}: is_attack={status['is_malicious']}, detected={status['detected']}, attack_type={status['attack_type']}")
 
-        return [client_models[i] for i in valid_indices]
+        return valid_indices, client_scores
 
     def secure_aggregate(self, global_model, client_models, client_data_sizes):
         if not client_models:  # Handle empty case

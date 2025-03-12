@@ -120,6 +120,12 @@ def federated_learning_with_early_stopping(
         monitor=monitor
     )
 
+    # Initialize lists for security metrics
+    security_true_labels = []  # True malicious status
+    security_pred_labels = []  # Detection status
+    security_scores = []       # Anomaly scores
+    round_accuracies = []
+
     # Initialize attack counters
     total_attack_counters = {
         'data_poisoning': 0,
@@ -192,7 +198,8 @@ def federated_learning_with_early_stopping(
                     'is_malicious': attack_info['is_malicious'],
                     'attack_type': attack_type,
                     'detected': attack_info['is_malicious'],
-                    'skipped': True
+                    'skipped': True,
+                    'score': 1000.0
                 }
                 if monitor and attack_info['is_malicious']:  # Record event explicitly
                     monitor.record_security_event(client_idx, True, True, attack_type)
@@ -239,7 +246,8 @@ def federated_learning_with_early_stopping(
                     'is_malicious': attack_info['is_malicious'],
                     'attack_type': attack_type,
                     'detected': attack_info['is_malicious'],
-                    'skipped': True
+                    'skipped': True,
+                    'score': 1000.0
                 }
                 if monitor and attack_info['is_malicious']:  # Record event explicitly
                     monitor.record_security_event(client_idx, True, True, attack_type)
@@ -267,14 +275,20 @@ def federated_learning_with_early_stopping(
                 'is_malicious': attack_info['is_malicious'],
                 'attack_type': attack_type,
                 'detected': False,
-                'skipped': False
+                'skipped': False,
+                'score': None
             }
 
         if monitor:
             monitor.record_scalability_metrics(len(client_models), sum(client_data_sizes))
 
         if enable_defense:
-            filtered_models = defender.analyze_models(client_models, encryption_simulator, client_indices, all_client_status)
+            valid_indices, client_scores = defender.analyze_models(client_models, encryption_simulator, client_indices, all_client_status)
+            for i, idx in enumerate(client_indices):
+                all_client_status[idx]['score'] = client_scores[i]
+                all_client_status[idx]['detected'] = i not in valid_indices
+            # filtered_models = defender.analyze_models(client_models, encryption_simulator, client_indices, all_client_status)
+            filtered_models = [client_models[i] for i in valid_indices]
             global_model = defender.secure_aggregate(global_model, filtered_models, client_data_sizes)
         
         if not defender.verify_global_model(global_model):
@@ -293,6 +307,13 @@ def federated_learning_with_early_stopping(
 
         if monitor:
             monitor.metrics['performance']['accuracy'].append(test_accuracy)
+
+        # Collect security metrics
+        for status in all_client_status:
+            if status is not None:
+                security_true_labels.append(status['is_malicious'])
+                security_pred_labels.append(status['detected'])
+                security_scores.append(status['score'] if status['score'] is not None else 1000.0)
         
         if test_accuracy > best_accuracy + min_delta:
             best_accuracy = test_accuracy
@@ -312,4 +333,4 @@ def federated_learning_with_early_stopping(
     for attack_type, count in post_warmup_attack_counters.items():
         print(f"{attack_type.replace('_', ' ').title()}: {count} instances")
     
-    return global_model, round_accuracies
+    return global_model, round_accuracies, security_true_labels, security_pred_labels, security_scores
