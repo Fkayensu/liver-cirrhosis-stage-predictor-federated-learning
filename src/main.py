@@ -1,116 +1,3 @@
-# from data_preprocessing import load_and_preprocess_data, split_data_among_clients
-# from model import CirrhosisPredictor
-# from federated_learning import federated_learning_with_early_stopping
-# from evaluation import evaluate_model, calculate_metrics, print_evaluation_results
-# from performance import PerformanceMonitor
-# import numpy as np
-# import matplotlib.pyplot as plt
-
-# def main():
-#     # Initialize performance monitor
-#     monitor = PerformanceMonitor()
-    
-#     # Load and preprocess data
-#     file_path = '/Users/frederickayensu/jupyter-1.0.0/Federated_Learning/liver_cirrhosis.csv'
-#     X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor = load_and_preprocess_data(file_path)
-    
-#     # Split data among clients without attack simulation
-#     num_clients = 20
-#     client_data = split_data_among_clients(X_train_tensor, y_train_tensor, num_clients)
-    
-#     # Initialize global model
-#     input_dim = X_train_tensor.shape[1]
-#     global_model = CirrhosisPredictor(input_dim)
-    
-#     # Run federated learning with integrated monitoring
-#     trained_model = federated_learning_with_early_stopping(
-#         global_model,
-#         client_data,
-#         X_test_tensor,
-#         y_test_tensor,
-#         monitor=monitor,
-#         enable_defense=True
-#     )
-    
-#     # Final evaluation
-#     final_accuracy = evaluate_model(trained_model, X_test_tensor, y_test_tensor)
-#     print(f"\nFinal Test Accuracy: {final_accuracy:.4f}")
-    
-#     # Comprehensive metrics report
-#     final_metrics = calculate_metrics(trained_model, X_test_tensor, y_test_tensor)
-#     print_evaluation_results(final_metrics)
-    
-#     # Generate defense framework performance report
-#     print("\nDefense Framework Performance Analysis:")
-#     monitor.print_detailed_report()
-
-# if __name__ == "__main__":
-#     main()
-
-# from data_preprocessing import load_and_preprocess_data, split_data_among_clients
-# from model import CirrhosisPredictor
-# from federated_learning import federated_learning_with_early_stopping
-# from evaluation import evaluate_model, calculate_metrics, print_evaluation_results
-# from performance import PerformanceMonitor
-# import numpy as np
-# import matplotlib.pyplot as plt
-
-# if __name__ == "__main__":
-#     # List to store accuracies for each run
-#     all_round_accuracies = []
-    
-#     # Run the program three times
-#     for run in range(3):
-#         print(f"\n--- Test Run {run + 1} ---")
-        
-#         # Initialize performance monitor
-#         monitor = PerformanceMonitor()
-        
-#         # Load and preprocess data
-#         file_path = '/Users/frederickayensu/jupyter-1.0.0/Federated_Learning/liver_cirrhosis.csv'
-#         X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor = load_and_preprocess_data(file_path)
-        
-#         # Split data among clients
-#         num_clients = 20
-#         client_data = split_data_among_clients(X_train_tensor, y_train_tensor, num_clients)
-        
-#         # Initialize global model
-#         input_dim = X_train_tensor.shape[1]
-#         global_model = CirrhosisPredictor(input_dim)
-        
-#         # Run federated learning and get both the trained model and round accuracies
-#         trained_model, round_accuracies = federated_learning_with_early_stopping(
-#             global_model, client_data, X_test_tensor, y_test_tensor, monitor=monitor, enable_defense=True
-#         )
-        
-#         # Store accuracies for plotting
-#         all_round_accuracies.append(round_accuracies)
-        
-#         # Final evaluation
-#         final_accuracy = evaluate_model(trained_model, X_test_tensor, y_test_tensor)
-#         print(f"\nFinal Test Accuracy: {final_accuracy:.4f}")
-        
-#         # Comprehensive metrics report
-#         final_metrics = calculate_metrics(trained_model, X_test_tensor, y_test_tensor)
-#         print_evaluation_results(final_metrics)
-        
-#         # Defense framework performance report
-#         print("\nDefense Framework Performance Analysis:")
-#         monitor.print_detailed_report()
-    
-#     # Plot accuracy trends for all three runs
-#     plt.figure(figsize=(10, 6))
-#     for i, accuracies in enumerate(all_round_accuracies):
-#         plt.plot(range(1, len(accuracies) + 1), accuracies, label=f'Test Run {i + 1}', marker='o')
-#     plt.xlabel('Federation Round')
-#     plt.ylabel('Test Accuracy')
-#     plt.title('Accuracy Across Federation Rounds for 3 Test Runs')
-#     plt.legend()
-#     plt.grid(True)
-#     plt.savefig('defense_fl_model_accuracy.png')
-#     plt.show()
-
-
 from data_preprocessing import load_and_preprocess_data, split_data_among_clients
 from model import CirrhosisPredictor
 from federated_learning import federated_learning_with_early_stopping
@@ -123,14 +10,15 @@ from sklearn.metrics import roc_curve, auc, confusion_matrix
 
 if __name__ == "__main__":
     all_round_accuracies = []
-    # *** Add this line to store performance metrics across runs ***
     run_metrics = []
+    file_path = '/Users/frederickayensu/jupyter-1.0.0/Federated_Learning/liver_cirrhosis.csv'
+    X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor = load_and_preprocess_data(file_path)    
 
-    for run in range(1):
+    for run in range(3):
         print(f"\n--- Test Run {run + 1} ---")
         
         monitor = PerformanceMonitor()
-        file_path = '/Users/frederickayensu/jupyter-1.0.0/Federated_Learning/liver_cirrhosis.csv'  # Update with your file path
+        # file_path = '/Users/frederickayensu/jupyter-1.0.0/Federated_Learning/liver_cirrhosis.csv'  # Update with your file path
         X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor = load_and_preprocess_data(file_path)
         num_clients = 20
         client_data = split_data_among_clients(X_train_tensor, y_train_tensor, num_clients)
@@ -138,8 +26,8 @@ if __name__ == "__main__":
         global_model = CirrhosisPredictor(input_dim)
 
         # Run federated learning
-        trained_model, round_accuracies, security_true_labels, security_pred_labels, security_scores = federated_learning_with_early_stopping(
-            global_model, client_data, X_test_tensor, y_test_tensor, monitor=monitor, enable_defense=True
+        trained_model, round_accuracies, security_true_labels, security_pred_labels, security_scores, attack_metrics = federated_learning_with_early_stopping(
+            global_model, client_data, X_test_tensor, y_test_tensor, monitor=monitor
         )
 
         all_round_accuracies.append(round_accuracies)
@@ -158,6 +46,63 @@ if __name__ == "__main__":
         report = monitor.generate_report()
         run_metrics.append(report['performance'])
 
+        # --- Compute Attack-Specific Metrics ---
+        attack_results = {}
+        plt.figure(figsize=(10, 6))
+        colors = ['b', 'g', 'r', 'c']
+        attack_types = ['data_poisoning', 'model_poisoning', 'backdoor', 'mitm']
+
+        for attack_type, color in zip(attack_types, colors):
+            true = np.array(attack_metrics[attack_type]['true'])
+            pred = np.array(attack_metrics[attack_type]['pred'])
+            scores = np.array(attack_metrics[attack_type]['scores'])
+
+            if len(true) == 0 or len(scores) == 0:
+                print(f"No instances of {attack_type} detected.")
+                attack_results[attack_type] = {'detection_rate': 0, 'fpr': 0, 'precision': 0, 'auc': 0}
+                continue
+
+            # ROC Curve and AUC
+            fpr, tpr, _ = roc_curve(true, scores)
+            roc_auc = auc(fpr, tpr)
+            plt.plot(fpr, tpr, color=color, lw=2, label=f'{attack_type.replace("_", " ").title()} (AUC = {roc_auc:.2f})')
+
+            # Metrics
+            tp = sum(true & pred)
+            fp = sum(~true & pred)
+            tn = sum(~true & ~pred)
+            fn = sum(true & ~pred)
+            detection_rate = tp / (tp + fn) if (tp + fn) > 0 else 0
+            fpr_val = fp / (fp + tn) if (fp + tn) > 0 else 0
+            precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+
+            attack_results[attack_type] = {
+                'detection_rate': detection_rate,
+                'fpr': fpr_val,
+                'precision': precision,
+                'auc': roc_auc
+            }
+
+        # Finalize ROC Plot
+        plt.plot([0, 1], [0, 1], 'k--')
+        plt.xlabel('False Positive Rate', fontsize=16)
+        plt.ylabel('True Positive Rate', fontsize=16)
+        plt.title(f'ROC Curves for Attack Detection - Run {run + 1}', fontsize=16)
+        plt.legend(loc="lower right")
+        plt.grid(True)
+        plt.xticks(fontsize=13)
+        plt.yticks(fontsize=13)
+        plt.savefig(f'results/attack_detection_roc_run_{run + 1}.png')
+        plt.show()
+
+        # --- Generate Table ---
+        print(f"\n=== Attack Detection Metrics - Run {run + 1} ===")
+        print(f"{'Attack Type':<15} | {'Detection Rate':<15}")
+        print("-" * 55)
+        for attack_type in attack_types:
+            metrics = attack_results.get(attack_type, {'detection_rate': 0, 'fpr': 0, 'precision': 0})
+            print(f"{attack_type.replace('_', ' ').title():<15} | {metrics['detection_rate']:<15.4f}")
+
         # --- Model Performance Metrics ---
         y_true = y_test_tensor.numpy()
         y_scores = trained_model(X_test_tensor).detach().numpy()
@@ -174,7 +119,7 @@ if __name__ == "__main__":
         plt.title(f'Confusion Matrix - Test Run {run + 1}', fontsize=16)
         plt.xticks(fontsize=13)
         plt.yticks(fontsize=13)
-        plt.savefig(f'confusion_matrix_defense_fl_run_{run + 1}.png')
+        plt.savefig(f'results/confusion_matrix_defense_fl_run_{run + 1}.png')
         plt.show()
 
         # Model ROC Curves (one per class)
@@ -192,7 +137,7 @@ if __name__ == "__main__":
         plt.yticks(fontsize=13)
         plt.legend(loc="lower right")
         plt.grid(True)
-        plt.savefig(f'ROC_curve_defense_fl_run_{run + 1}.png')
+        plt.savefig(f'results/ROC_curve_defense_fl_run_{run + 1}.png')
         plt.show()
 
         # --- Security Metrics ---
@@ -211,7 +156,7 @@ if __name__ == "__main__":
         plt.title(f'Confusion Matrix - Test Run {run + 1}', fontsize=16)
         plt.xticks(fontsize=13)
         plt.yticks(fontsize=13)
-        plt.savefig(f'cm_sec_{run + 1}.png')
+        plt.savefig(f'results/cm_sec_{run + 1}.png')
         plt.show()
 
         # Security ROC Curve
@@ -227,7 +172,7 @@ if __name__ == "__main__":
         plt.xticks(fontsize=13)
         plt.yticks(fontsize=13)
         plt.legend()
-        plt.savefig(f'ROC_sec_{run + 1}.png')
+        plt.savefig(f'results/ROC_sec_{run + 1}.png')
         plt.show()
 
     # Plot accuracy trends across runs
@@ -241,10 +186,9 @@ if __name__ == "__main__":
     plt.title('Accuracy Across Federation Rounds for 3 Test Runs', fontsize=16)
     plt.legend()
     plt.grid(True)
-    plt.savefig(f'acc_trend_sec_{run + 1}.png')
+    plt.savefig(f'results/acc_trend_sec_{run + 1}.png')
     plt.show()
 
-    # *** Add this code after the loop to generate the table and bar chart ***
     # Print latency table
     print("\n=== Latency Metrics Across Runs ===")
     print(f"{'Run':<5} | {'Aggregation Latency':<20} | {'Validation Latency':<20} | {'Average Round Time':<20}")
@@ -270,219 +214,273 @@ if __name__ == "__main__":
         'Average Round Time': [max(m.get('avg_round_latency', 0), 1e-6) for m in run_metrics]
     }
 
-    # # Create figure
-    # plt.figure(figsize=(12, 6))
-    # x = np.arange(len(runs))
-    # width = 0.25
-    # plt.bar(x - width, [data['Aggregation Latency'][i] for i in range(len(runs))], width, label='Aggregation Latency', color='skyblue')
-    # plt.bar(x, [data['Validation Latency'][i] for i in range(len(runs))], width, label='Validation Latency', color='lightgreen')
-    # plt.bar(x + width, [data['Average Round Time'][i] for i in range(len(runs))], width, label='Average Round Time', color='salmon')
-    # plt.yscale('log')
-    # plt.xlabel('Test Run', fontsize=16)
-    # plt.ylabel('Time (seconds, log scale)', fontsize=16)
-    # plt.title('Performance Metrics Across Test Runs', fontsize=16)
-    # plt.xticks(x, runs, fontsize=13)
-    # plt.yticks(fontsize=13)
-    # plt.legend()
-    # plt.grid(True, alpha=0.3, which="both")
-    # plt.tight_layout()
-    # plt.savefig('performance_metrics.png')
-    # plt.show()
+    # Create figure
+    plt.figure(figsize=(12, 6))
+    x = np.arange(len(runs))
+    width = 0.25
+    plt.bar(x - width, [data['Aggregation Latency'][i] for i in range(len(runs))], width, label='Aggregation Latency', color='skyblue')
+    plt.bar(x, [data['Validation Latency'][i] for i in range(len(runs))], width, label='Validation Latency', color='lightgreen')
+    plt.bar(x + width, [data['Average Round Time'][i] for i in range(len(runs))], width, label='Average Round Time', color='salmon')
+    plt.yscale('log')
+    plt.xlabel('Test Run', fontsize=16)
+    plt.ylabel('Time (seconds, log scale)', fontsize=16)
+    plt.title('Performance Metrics Across Test Runs', fontsize=16)
+    plt.xticks(x, runs, fontsize=13)
+    plt.yticks(fontsize=13)
+    plt.legend()
+    plt.grid(True, alpha=0.3, which="both")
+    plt.tight_layout()
+    plt.savefig('results/performance_metrics.png')
+    plt.show()
 
-    # print("\n=== Scalability Experiment ===")
-    # client_counts = list(range(2, 21, 2))
-    # scalability_data = []
+    print("\n=== Scalability Experiment ===")
+    client_counts = list(range(2, 21, 2))
+    scalability_data = []
 
-    # for num_clients in client_counts:
-    #     print(f"\nRunning with {num_clients} clients")
-    #     monitor = PerformanceMonitor()
+    for num_clients_scale in client_counts:
+        print(f"\nRunning with {num_clients_scale} clients")
+        monitor = PerformanceMonitor()
         
-    #     # Load and preprocess data
-    #     file_path = '/Users/frederickayensu/jupyter-1.0.0/Federated_Learning/liver_cirrhosis.csv'
-    #     X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor = load_and_preprocess_data(file_path)
+        # # Load and preprocess data
+        # file_path = '/Users/frederickayensu/jupyter-1.0.0/Federated_Learning/liver_cirrhosis.csv'
+        # X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor = load_and_preprocess_data(file_path)
         
-    #     # Split data among clients
-    #     client_data = split_data_among_clients(X_train_tensor, y_train_tensor, num_clients)
+        # Split data among clients
+        client_data = split_data_among_clients(X_train_tensor, y_train_tensor, num_clients_scale)
         
-    #     # Initialize model
-    #     input_dim = X_train_tensor.shape[1]
-    #     global_model = CirrhosisPredictor(input_dim)
+        # Initialize model
+        input_dim = X_train_tensor.shape[1]
+        global_model = CirrhosisPredictor(input_dim)
         
-    #     # Run federated learning for 5 rounds
-    #     trained_model, round_accuracies, security_true_labels, security_pred_labels, security_scores = federated_learning_with_early_stopping(
-    #         global_model,
-    #         client_data,
-    #         X_test_tensor,
-    #         y_test_tensor,
-    #         monitor=monitor,
-    #         enable_defense=True,
-    #         max_rounds=5,
-    #         patience=10
-    #     )
+        # Run federated learning for 5 rounds
+        trained_model, round_accuracies, security_true_labels, security_pred_labels, security_scores, _ = federated_learning_with_early_stopping(
+            global_model,
+            client_data,
+            X_test_tensor,
+            y_test_tensor,
+            monitor=monitor
+        )
         
-    #     # Extract performance metrics
-    #     report = monitor.generate_report()
-    #     performance = report['performance']
-    #     agg_lat = performance.get('avg_aggregation_latency', 0)
-    #     val_lat = performance.get('avg_validation_latency', 0)
-    #     round_lat = performance.get('avg_round_latency', 0)
+        # Extract performance metrics
+        report = monitor.generate_report()
+        performance = report['performance']
+        agg_lat = performance.get('avg_aggregation_latency', 0)
+        val_lat = performance.get('avg_validation_latency', 0)
+        round_lat = performance.get('avg_round_latency', 0)
         
-    #     # Store results
-    #     scalability_data.append({
-    #         'num_clients': num_clients,
-    #         'agg_latency': agg_lat,
-    #         'val_latency': val_lat,
-    #         'round_latency': round_lat
-    #     })
+        # Store results
+        scalability_data.append({
+            'num_clients': num_clients_scale,
+            'agg_latency': agg_lat,
+            'val_latency': val_lat,
+            'round_latency': round_lat
+        })
 
-    # # Create and print the table
-    # print("\n=== Scalability Metrics Table ===")
-    # print(f"{'Clients':<10} | {'Agg Latency':<15} | {'Val Latency':<15} | {'Round Time':<15}")
-    # print("-" * 60)
-    # for data in scalability_data:
-    #     print(f"{data['num_clients']:<10} | {data['agg_latency']:<15.4f} | {data['val_latency']:<15.4f} | {data['round_latency']:<15.4f}")
+    # Create and print the table
+    print("\n=== Scalability Metrics Table ===")
+    print(f"{'Clients':<10} | {'Agg Latency':<15} | {'Val Latency':<15} | {'Round Time':<15}")
+    print("-" * 60)
+    for data in scalability_data:
+        print(f"{data['num_clients']:<10} | {data['agg_latency']:<15.4f} | {data['val_latency']:<15.4f} | {data['round_latency']:<15.4f}")
 
-    # # Create the line graph
-    # plt.figure(figsize=(10, 6))
-    # plt.plot(
-    #     [d['num_clients'] for d in scalability_data],
-    #     [d['agg_latency'] for d in scalability_data],
-    #     label='Aggregation Latency',
-    #     marker='o'
-    # )
-    # plt.plot(
-    #     [d['num_clients'] for d in scalability_data],
-    #     [d['val_latency'] for d in scalability_data],
-    #     label='Validation Latency',
-    #     marker='o'
-    # )
-    # plt.plot(
-    #     [d['num_clients'] for d in scalability_data],
-    #     [d['round_latency'] for d in scalability_data],
-    #     label='Average Round Time',
-    #     marker='o'
-    # )
-    # plt.xlabel('Number of Clients')
-    # plt.ylabel('Time (s)')
-    # plt.title('Scalability Metrics vs Number of Clients')
-    # plt.yscale('log')  # Logarithmic scale for y-axis
-    # plt.legend()
-    # plt.grid(True)
-    # plt.savefig('scalability_metrics.png')
-    # plt.show()
+    # Create the line graph
+    plt.figure(figsize=(10, 6))
+    plt.plot(
+        [d['num_clients'] for d in scalability_data],
+        [d['agg_latency'] for d in scalability_data],
+        label='Aggregation Latency',
+        marker='o'
+    )
+    plt.plot(
+        [d['num_clients'] for d in scalability_data],
+        [d['val_latency'] for d in scalability_data],
+        label='Validation Latency',
+        marker='o'
+    )
+    plt.plot(
+        [d['num_clients'] for d in scalability_data],
+        [d['round_latency'] for d in scalability_data],
+        label='Average Round Time',
+        marker='o'
+    )
+    plt.xlabel('Number of Clients', fontsize=16)
+    plt.ylabel('Time (s)', fontsize=16)
+    plt.title('Scalability Metrics vs Number of Clients', fontsize=16)
+    plt.yscale('log')  # Logarithmic scale for y-axis
+    plt.legend()
+    plt.xticks(fontsize=13)
+    plt.yticks(fontsize=13)
+    plt.grid(True)
+    plt.savefig('results/scalability_metrics.png')
+    plt.show()
 
     # --- Experiment 1: Accuracy vs Number of Clients ---
-    # print("\n=== Experiment: Accuracy vs Number of Clients ===")
-    # client_counts = list(range(2, 21, 2))  # [2, 4, 6, ..., 20]
-    # accuracies_vs_clients = []
+    print("\n=== Experiment: Accuracy vs Number of Clients ===")
+    client_counts = list(range(2, 21, 2))  # [2, 4, 6, ..., 20]
+    accuracies_vs_clients = []
 
-    # for num_clients in client_counts:
-    #     print(f"Running with {num_clients} clients")
-    #     monitor = PerformanceMonitor()
+    for num_clients_ce in client_counts:
+        print(f"Running with {num_clients_ce} clients")
+        monitor = PerformanceMonitor()
         
-    #     # Load and preprocess data
-    #     X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor = load_and_preprocess_data(file_path)
+        # Load and preprocess data
+        X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor = load_and_preprocess_data(file_path)
         
-    #     # Split data among clients
-    #     client_data = split_data_among_clients(X_train_tensor, y_train_tensor, num_clients)
+        # Split data among clients
+        client_data = split_data_among_clients(X_train_tensor, y_train_tensor, num_clients_ce)
         
-    #     # Initialize global model
-    #     input_dim = X_train_tensor.shape[1]
-    #     global_model = CirrhosisPredictor(input_dim)
+        # Initialize global model
+        input_dim = X_train_tensor.shape[1]
+        global_model = CirrhosisPredictor(input_dim)
         
-    #     # Run federated learning for 5 rounds
-    #     trained_model, round_accuracies, _, _, _ = federated_learning_with_early_stopping(
-    #         global_model,
-    #         client_data,
-    #         X_test_tensor,
-    #         y_test_tensor,
-    #         monitor=monitor,
-    #         enable_defense=True,
-    #         max_rounds=5,
-    #         patience=10  # Ensures all 5 rounds run without early stopping
-    #     )
+        # Run federated learning for 5 rounds
+        trained_model, round_accuracies, _, _, _, _ = federated_learning_with_early_stopping(
+            global_model,
+            client_data,
+            X_test_tensor,
+            y_test_tensor,
+            monitor=monitor
+        )
         
-    #     # Evaluate final accuracy
-    #     accuracy = evaluate_model(trained_model, X_test_tensor, y_test_tensor)
-    #     accuracies_vs_clients.append(accuracy)
+        # Evaluate final accuracy
+        accuracy = evaluate_model(trained_model, X_test_tensor, y_test_tensor)
+        accuracies_vs_clients.append(accuracy)
 
-    # # Table for Accuracy vs Number of Clients
-    # print("\nAccuracy vs Number of Clients")
-    # print(f"{'Clients':<10} | {'Accuracy':<10}")
-    # print("-" * 22)
-    # for clients, acc in zip(client_counts, accuracies_vs_clients):
-    #     print(f"{clients:<10} | {acc:.4f}")
+    # Table for Accuracy vs Number of Clients
+    print("\nAccuracy vs Number of Clients")
+    print(f"{'Clients':<10} | {'Accuracy':<10}")
+    print("-" * 22)
+    for clients, acc in zip(client_counts, accuracies_vs_clients):
+        print(f"{clients:<10} | {acc:.4f}")
 
-    # # Line Graph for Accuracy vs Number of Clients
-    # plt.figure(figsize=(8, 5))
-    # plt.plot(client_counts, accuracies_vs_clients, marker='o', label='Accuracy')
-    # plt.xlabel('Number of Clients', fontsize=16)
-    # plt.ylabel('Accuracy', fontsize=16)
-    # plt.ylim(0.5, 1)
-    # plt.xticks(fontsize=13)
-    # plt.yticks(fontsize=13)
-    # plt.title('Accuracy vs Number of Clients', fontsize=16)
-    # plt.grid(True)
-    # plt.savefig('accuracy_vs_clients.png')
-    # plt.show()
+    # Line Graph for Accuracy vs Number of Clients
+    plt.figure(figsize=(8, 5))
+    plt.plot(client_counts, accuracies_vs_clients, marker='o', label='Accuracy')
+    plt.xlabel('Number of Clients', fontsize=16)
+    plt.ylabel('Accuracy', fontsize=16)
+    plt.ylim(0.5, 1)
+    plt.xticks(fontsize=13)
+    plt.yticks(fontsize=13)
+    plt.title('Accuracy vs Number of Clients', fontsize=16)
+    plt.grid(True)
+    plt.savefig('results/accuracy_vs_clients.png')
+    plt.show()
 
-    # # --- Experiment 2: Accuracy vs Data Fraction ---
-    # print("\n=== Experiment: Accuracy vs Data Fraction ===")
-    # data_fractions = [i / 10 for i in range(1, 11)]  # [0.1, 0.2, ..., 1.0]
-    # accuracies_vs_data = []
-    # fixed_num_clients = 10  # Fixed number of clients for this experiment
+    # --- Experiment 2: Accuracy vs Data Fraction ---
+    print("\n=== Experiment: Accuracy vs Data Fraction ===")
+    data_fractions = [i / 10 for i in range(1, 11)]  # [0.1, 0.2, ..., 1.0]
+    accuracies_vs_data = []
+    fixed_num_clients = 10  # Fixed number of clients for this experiment
 
-    # for fraction in data_fractions:
-    #     print(f"Running with data fraction {fraction:.1f}")
-    #     monitor = PerformanceMonitor()
+    for fraction in data_fractions:
+        print(f"Running with data fraction {fraction:.1f}")
+        monitor = PerformanceMonitor()
         
-    #     # Load and preprocess data
-    #     X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor = load_and_preprocess_data(file_path)
+        # Load and preprocess data
+        X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor = load_and_preprocess_data(file_path)
         
-    #     # Select a random subset of training data based on the fraction
-    #     num_samples = int(len(X_train_tensor) * fraction)
-    #     indices = np.random.choice(len(X_train_tensor), num_samples, replace=False)
-    #     X_train_subset = X_train_tensor[indices]
-    #     y_train_subset = y_train_tensor[indices]
+        # Select a random subset of training data based on the fraction
+        num_samples = int(len(X_train_tensor) * fraction)
+        indices = np.random.choice(len(X_train_tensor), num_samples, replace=False)
+        X_train_subset = X_train_tensor[indices]
+        y_train_subset = y_train_tensor[indices]
         
-    #     # Split the subset among fixed number of clients
-    #     client_data = split_data_among_clients(X_train_subset, y_train_subset, fixed_num_clients)
+        # Split the subset among fixed number of clients
+        client_data = split_data_among_clients(X_train_subset, y_train_subset, fixed_num_clients)
         
-    #     # Initialize global model
-    #     input_dim = X_train_tensor.shape[1]
-    #     global_model = CirrhosisPredictor(input_dim)
+        # Initialize global model
+        input_dim = X_train_tensor.shape[1]
+        global_model = CirrhosisPredictor(input_dim)
         
-    #     # Run federated learning for 5 rounds
-    #     trained_model, round_accuracies, _, _, _ = federated_learning_with_early_stopping(
-    #         global_model,
-    #         client_data,
-    #         X_test_tensor,
-    #         y_test_tensor,
-    #         monitor=monitor,
-    #         enable_defense=True,
-    #         max_rounds=5,
-    #         patience=10  # Ensures all 5 rounds run without early stopping
-    #     )
+        # Run federated learning for 5 rounds
+        trained_model, round_accuracies, _, _, _, _ = federated_learning_with_early_stopping(
+            global_model,
+            client_data,
+            X_test_tensor,
+            y_test_tensor,
+            monitor=monitor,
+            enable_defense=True,
+            max_rounds=5,
+            patience=10  # Ensures all 5 rounds run without early stopping
+        )
         
-    #     # Evaluate final accuracy
-    #     accuracy = evaluate_model(trained_model, X_test_tensor, y_test_tensor)
-    #     accuracies_vs_data.append(accuracy)
+        # Evaluate final accuracy
+        accuracy = evaluate_model(trained_model, X_test_tensor, y_test_tensor)
+        accuracies_vs_data.append(accuracy)
 
-    # # Table for Accuracy vs Data Fraction
-    # print("\nAccuracy vs Data Fraction")
-    # print(f"{'Data Fraction':<15} | {'Accuracy':<10}")
-    # print("-" * 28)
-    # for fraction, acc in zip(data_fractions, accuracies_vs_data):
-    #     print(f"{fraction:<15.1f} | {acc:.4f}")
+    # Table for Accuracy vs Data Fraction
+    print("\nAccuracy vs Data Fraction")
+    print(f"{'Data Fraction':<15} | {'Accuracy':<10}")
+    print("-" * 28)
+    for fraction, acc in zip(data_fractions, accuracies_vs_data):
+        print(f"{fraction:<15.1f} | {acc:.4f}")
 
-    # # Line Graph for Accuracy vs Data Fraction
-    # plt.figure(figsize=(8, 5))
-    # plt.plot(data_fractions, accuracies_vs_data, marker='o', label='Accuracy')
-    # plt.xlabel('Data Fraction', fontsize=13)
-    # plt.ylabel('Accuracy', fontsize=13)
-    # plt.xticks(fontsize=13)
-    # plt.yticks(fontsize=13)
-    # plt.title('Accuracy vs Data Fraction', fontsize=13)
-    # plt.grid(True)
-    # plt.savefig('accuracy_vs_data_fraction.png')
-    # plt.show()
+    # Line Graph for Accuracy vs Data Fraction
+    plt.figure(figsize=(8, 5))
+    plt.plot(data_fractions, accuracies_vs_data, marker='o', label='Accuracy')
+    plt.xlabel('Data Fraction', fontsize=13)
+    plt.ylabel('Accuracy', fontsize=13)
+    plt.xticks(fontsize=13)
+    plt.yticks(fontsize=13)
+    plt.title('Accuracy vs Data Fraction', fontsize=13)
+    plt.grid(True)
+    plt.savefig('results/accuracy_vs_data_fraction.png')
+    plt.show()
+
+    # --- Experiment 2: Accuracy vs Sample Size ---
+    print("\n=== Experiment: Accuracy vs Sample Size ===")
+    total_samples = len(X_train_tensor)  # Get total number of training samples
+    sample_sizes = [int(total_samples * i / 10) for i in range(1, 11)]  # [10%, 20%, ..., 100%] of total samples
+    accuracies_vs_sample_size = []
+    fixed_num_clients = 5  # Fixed number of clients for this experiment
+
+    for sample_size in sample_sizes:
+        print(f"Running with sample size {sample_size}")
+        monitor = PerformanceMonitor()
+        
+        # Load and preprocess data
+        X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor = load_and_preprocess_data(file_path)
+        
+        # Select a random subset of training data based on the sample size
+        indices = np.random.choice(len(X_train_tensor), sample_size, replace=False)
+        X_train_subset = X_train_tensor[indices]
+        y_train_subset = y_train_tensor[indices]
+        
+        # Split the subset among fixed number of clients
+        client_data = split_data_among_clients(X_train_subset, y_train_subset, fixed_num_clients)
+        
+        # Initialize global model
+        input_dim = X_train_tensor.shape[1]
+        global_model = CirrhosisPredictor(input_dim)
+        
+        # Run federated learning for 5 rounds
+        trained_model, round_accuracies, _, _, _, _ = federated_learning_with_early_stopping(
+            global_model,
+            client_data,
+            X_test_tensor,
+            y_test_tensor,
+            monitor=monitor
+        )
+        
+        # Evaluate final accuracy
+        accuracy = evaluate_model(trained_model, X_test_tensor, y_test_tensor)
+        accuracies_vs_sample_size.append(accuracy)
+
+    # Table for Accuracy vs Sample Size
+    print("\nAccuracy vs Sample Size")
+    print(f"{'Sample Size':<15} | {'Accuracy':<10}")
+    print("-" * 28)
+    for size, acc in zip(sample_sizes, accuracies_vs_sample_size):
+        print(f"{size:<15} | {acc:.4f}")
+
+    # Line Graph for Accuracy vs Sample Size
+    plt.figure(figsize=(8, 5))
+    plt.plot(sample_sizes, accuracies_vs_sample_size, marker='o', label='Accuracy')
+    plt.xlabel('Sample Size', fontsize=13)
+    plt.ylabel('Accuracy', fontsize=13)
+    plt.xticks(fontsize=13)
+    plt.yticks(fontsize=13)
+    plt.title('Accuracy vs Sample Size', fontsize=13)
+    plt.grid(True)
+    plt.savefig('results/accuracy_vs_sample_size.png')
+    plt.show()

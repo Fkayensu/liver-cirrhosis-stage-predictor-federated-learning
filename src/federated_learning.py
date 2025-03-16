@@ -101,7 +101,7 @@ def federated_learning_with_early_stopping(
     client_data,
     X_test_tensor,
     y_test_tensor,
-    max_rounds = 4,
+    max_rounds = 100,
     patience=5,
     min_delta=0.001,
     enable_defense=True,
@@ -125,6 +125,12 @@ def federated_learning_with_early_stopping(
     security_pred_labels = []  # Detection status
     security_scores = []       # Anomaly scores
     round_accuracies = []
+    attack_metrics = {
+        'data_poisoning': {'true': [], 'pred': [], 'scores': []},
+        'model_poisoning': {'true': [], 'pred': [], 'scores': []},
+        'backdoor': {'true': [], 'pred': [], 'scores': []},
+        'mitm': {'true': [], 'pred': [], 'scores': []}
+    }
 
     # Initialize attack counters
     total_attack_counters = {
@@ -315,6 +321,15 @@ def federated_learning_with_early_stopping(
                 security_pred_labels.append(status['detected'])
                 security_scores.append(status['score'] if status['score'] is not None else 1000.0)
         
+        # Collect attack-specific metrics, including benign samples
+        for status in all_client_status:
+            if status is not None:
+                for attack_type in attack_metrics:
+                    is_malicious_for_type = status['attack_type'] == attack_type
+                    attack_metrics[attack_type]['true'].append(is_malicious_for_type)
+                    attack_metrics[attack_type]['pred'].append(status['detected'])
+                    attack_metrics[attack_type]['scores'].append(status['score'] if status['score'] is not None else 1000.0)
+
         if test_accuracy > best_accuracy + min_delta:
             best_accuracy = test_accuracy
             rounds_without_improvement = 0
@@ -333,4 +348,4 @@ def federated_learning_with_early_stopping(
     for attack_type, count in post_warmup_attack_counters.items():
         print(f"{attack_type.replace('_', ' ').title()}: {count} instances")
     
-    return global_model, round_accuracies, security_true_labels, security_pred_labels, security_scores
+    return global_model, round_accuracies, security_true_labels, security_pred_labels, security_scores, attack_metrics

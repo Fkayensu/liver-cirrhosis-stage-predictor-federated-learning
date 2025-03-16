@@ -4,7 +4,7 @@ from scipy.stats import median_abs_deviation
 from encryption import decrypt_vector
 
 class FederatedDefender:
-    def __init__(self, encryption_simulator, sensitivity=2.2, warmup_rounds=2, min_clients=5, validation_data=None, monitor=None):
+    def __init__(self, encryption_simulator, sensitivity=2.4, warmup_rounds=2, min_clients=5, validation_data=None, monitor=None):
         self.sensitivity = sensitivity
         self.warmup_rounds = warmup_rounds
         self.min_clients = min_clients
@@ -60,7 +60,6 @@ class FederatedDefender:
                 self.monitor.start_timer('aggregation')
                 self.monitor.stop_timer('aggregation')  # Keep timing consistent
                 # Log all clients (all skipped in this case)
-                # print(f"\nDebugging Security Events in Round:")
                 for idx in range(len(all_client_status)):
                     status = all_client_status[idx]
                     if status is not None and status['skipped']:  # Only log processed clients
