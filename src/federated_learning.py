@@ -101,7 +101,7 @@ def federated_learning_with_early_stopping(
     client_data,
     X_test_tensor,
     y_test_tensor,
-    max_rounds = 4,
+    max_rounds = 100,
     patience=5,
     min_delta=0.001,
     enable_defense=True,
