@@ -304,48 +304,6 @@ def run_accuracy_experiments(X_train_tensor, y_train_tensor, X_test_tensor, y_te
     plt.savefig('results/accuracy_vs_clients.png')
     plt.show()
     
-    # Experiment 2: Accuracy vs Data Fraction
-    print("\n=== Experiment: Accuracy vs Data Fraction ===")
-    data_fractions = [i / 10 for i in range(1, 11)]
-    accuracies_vs_data = []
-    fixed_num_clients = 10
-    
-    for fraction in data_fractions:
-        print(f"Running with data fraction {fraction:.1f}")
-        monitor = PerformanceMonitor()
-        num_samples = int(len(X_train_tensor) * fraction)
-        indices = np.random.choice(len(X_train_tensor), num_samples, replace=False)
-        X_train_subset = X_train_tensor[indices]
-        y_train_subset = y_train_tensor[indices]
-        
-        client_data = split_data_among_clients(X_train_subset, y_train_subset, fixed_num_clients)
-        input_dim = X_train_tensor.shape[1]
-        global_model = CirrhosisPredictor(input_dim)
-        
-        trained_model, round_accuracies, _, _, _, _ = federated_learning_with_early_stopping(
-            global_model, client_data, X_test_tensor, y_test_tensor, monitor=monitor, enable_defense=True, max_rounds=5, patience=10
-        )
-        
-        accuracy = evaluate_model(trained_model, X_test_tensor, y_test_tensor)
-        accuracies_vs_data.append(accuracy)
-    
-    print("\nAccuracy vs Data Fraction")
-    print(f"{'Data Fraction':<15} | {'Accuracy':<10}")
-    print("-" * 28)
-    for fraction, acc in zip(data_fractions, accuracies_vs_data):
-        print(f"{fraction:<15.1f} | {acc:.4f}")
-    
-    plt.figure(figsize=(8, 5))
-    plt.plot(data_fractions, accuracies_vs_data, marker='o', label='Accuracy')
-    plt.xlabel('Data Fraction', fontsize=13)
-    plt.ylabel('Accuracy', fontsize=13)
-    plt.xticks(fontsize=13)
-    plt.yticks(fontsize=13)
-    plt.title('Accuracy vs Data Fraction', fontsize=13)
-    plt.grid(True)
-    plt.savefig('results/accuracy_vs_data_fraction.png')
-    plt.show()
-    
     # Experiment 3: Accuracy vs Sample Size
     print("\n=== Experiment: Accuracy vs Sample Size ===")
     total_samples = len(X_train_tensor)

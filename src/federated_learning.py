@@ -10,7 +10,7 @@ from server_defense import FederatedDefender
 from clients_defense import (
     enhanced_local_data_validation, 
     enhanced_local_model_validation,
-    client_local_train  # This can be your updated training routine with defense mechanisms.
+    client_local_train 
 )
 from attack_simulation import (
     data_poisoning_attack,
